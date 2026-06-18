@@ -1,4 +1,7 @@
 node_modules/
 .env
+<<<<<<< HEAD
 
 /lib/generated/prisma
+=======
+>>>>>>> 15720827df064089f44f83c3ca584787b34ec670
