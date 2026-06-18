@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  username  String    @unique
+  email     String    @unique
+  hash      String
+  isMember  Boolean   @default(false)
+  isAdmin   Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  posts     Post[]
+  comments  Comment[]
+  files     File[]
+}
+
+model Post {
+  id          Int       @id @default(autoincrement())
+  title       String
+  content     String
+  isPublished Boolean   @default(false)
+  authorId    Int
+  createdAt   DateTime  @default(now())
+  author      User      @relation(fields: [authorId], references: [id])
+  comments    Comment[]
+  files       File[]
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  text      String
+  authorId  Int
+  postId    Int
+  createdAt DateTime @default(now())
+  author    User     @relation(fields: [authorId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+}
+
+model File {
+  id         Int      @id @default(autoincrement())
+  name       String
+  size       Int
+  mimeType   String
+  url        String
+  postId     Int?
+  uploadedBy Int
+  createdAt  DateTime @default(now())
+  post       Post?    @relation(fields: [postId], references: [id])
+  uploader   User     @relation(fields: [uploadedBy], references: [id])
+}
+
+model Folder {
+  id         Int         @id @default(autoincrement())
+  name       String
+  userId     Int
+  createdAt  DateTime    @default(now())
+  shareLinks ShareLink[]
+}
+
+model ShareLink {
+  id        Int      @id @default(autoincrement())
+  folderId  Int
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  folder    Folder   @relation(fields: [folderId], references: [id])
+}
