@@ -27,6 +27,67 @@ DevLog implements **three primary roles** with custom visibility levels:
 
 ---
 
+ 🗄️ Database Schema Design (Prisma)
+
+Built on **PostgreSQL** and modeled with **Prisma** (`prisma/schema.prisma`):
+
+```
+       +-----------------------+
+       |         User          |
+       +-----------------------+
+       | id (PK)               | <----+
+       | username (Unique)     |      |
+       | email (Unique)        |      |
+       | hash                  |      |
+       | isMember (Boolean)    |      |
+       | isAdmin (Boolean)     |      |
+       +-----------------------+      |
+         |         |         |        |
+         | (1)     | (1)     | (1)    |
+         v (N)     v (N)     v (N)    |
+   +----------+  +----------+ +------+----+
+   |   Post   |  | Comment  | |   File    |
+   +----------+  +----------+ +-----------+
+   | id (PK)  |  | id (PK)  | | id (PK)   |
+   | title    |  | text     | | name      |
+   | content  |  | postId   | | size      |
+   | isPub.   |  | authorId | | mimeType  |
+   | authorId |  +----------+ | url       |
+   +----------+               | publicId  |
+         | (1)                | postId?   | --+
+         v (N)                | folderId? | --|--+
+   +----------+               | uploadedBy| --+  |
+   |   File   |               +-----------+      |
+   +----------+                                  |
+                                                 |
+         +---------------------------------------+
+         |
+         v
+   +-----------+          +---------------+
+   |  Folder   | (1)  (N) |   ShareLink   |
+   +-----------+ -------- |---------------+
+   | id (PK)   |          | id (PK)       |
+   | name      |          | token (Unique)|
+   | userId    |          | expiresAt     |
+   +-----------+          +---------------+
+```
+
+⚙️ Hybrid Authentication Flow
+
+DevLog implements a highly secure, hybrid stateful-stateless authentication mechanism:
+
+```
+[Client] ---> Credentials (email/password) ---> POST /login ---> [Express Backend]
+                                                                      |
+                     Hash Verification (bcrypt) <---------------------+
+                                      |
+                 +--------------------+--------------------+
+                 | (Session-based)                         | (Token-based)
+                 v                                         v
+         Create Session (PG Table)                 Sign Bearer JWT
+         Set Cookie                                Return JWT + User Payload
+```
+
  🔑 Key Engineering & Architectural Concepts
 
 1. Database-Level Role Projection (Prisma Select)
