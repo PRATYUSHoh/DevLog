@@ -173,4 +173,39 @@ router.get('/api/me', requireJWT, (req, res) => {
     });
 });
 
+// GET /public/share/:token — no auth
+router.get('/public/share/:token', async (req, res) => {
+    try {
+        const { token } = req.params;
+
+        const shareLink = await prisma.shareLink.findUnique({
+            where: { token }
+        });
+
+        if (!shareLink) {
+            return res.status(404).json({ error: 'Share link not found' });
+        }
+
+        if (shareLink.expiresAt < new Date()) {
+            return res.status(410).json({ error: 'Share link has expired' });
+        }
+
+        const folder = await prisma.folder.findUnique({
+            where: { id: shareLink.folderId },
+            include: { files: true }
+        });
+
+        res.json({
+            folderName: folder.name,
+            files: folder.files.map(file => ({
+                name: file.name,
+                size: file.size,
+                url: file.url
+            }))
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 module.exports = router;
