@@ -1,348 +1,314 @@
-DevLog
+# DevLog
 
-It's an internal knowledge base for dev teams. Engineers document decisions and upload assets. Access is role-gated — guests see public docs, team members see full attribution, admins moderate. I built role-based visibility at the query level using Prisma select, JWT auth, and time-expiring share links for external asset sharing
+An internal knowledge base for dev teams. Engineers document decisions and upload assets. Access is role-gated — guests see public docs, team members see full attribution, admins moderate. Built role-based visibility at the query level using Prisma select, JWT auth, and time-expiring share links for external asset sharing.
 
+---
 
- 🛠️ Tech Stack & Architecture
+## Tech Stack
 
-- **Runtime Environment:** Node.js, Express
+- **Runtime:** Node.js, Express
 - **Database & ORM:** PostgreSQL, Prisma ORM
-- **Authentication & Security:** 
-  - Passport.js (Local Session Strategy for administrative flows)
-  - JSON Web Tokens (JWT) for stateless, secure `/api/*` requests
-  - Password hashing with `bcrypt`
-- **Asset Storage & Processing:** Multer (memory buffer storage), Cloudinary SDK (stream upload engine)
-- **Session Store:** PostgreSQL-backed sessions using `connect-pg-simple`
-
----
- **Interactive API Sandbox:** You can test the endpoints live at **[https://devlog-production-a576.up.railway.app/api-docs](https://devlog-production-a576.up.railway.app/api-docs)**
+- **Auth:** Passport.js (Local + JWT), bcrypt, express-session
+- **File Storage:** Multer (memoryStorage), Cloudinary SDK
+- **Session Store:** PostgreSQL via connect-pg-simple
+- **API Docs:** Swagger UI (swagger-jsdoc + swagger-ui-express)
 
 ---
 
-## 🛠️ Testing the Live API on Swagger
+## Live API Sandbox
 
-1. Navigate to `/api-docs`.
-2. Send a `POST` request to `/register` or use one of the seed credentials in the documentation to call `/auth/token`.
-3. Copy the returned `token` string.
-4. Click the **Authorize 🔓** lock icon at the top right of the Swagger UI.
-5. Paste your token (the Bearer prefix is appended automatically) and click **Authorize**.
-6. You are now authenticated! You can write drafts, create folders, upload assets, and query the database directly from the browser window.
-👥 Dynamic Role-Based Access Control
+Test all endpoints at: https://devlog-production-a576.up.railway.app/api-docs
 
-DevLog implements **three primary roles** with custom visibility levels:
-
-| Role | Permissions & Visibility | Upgrading Route |
-| :--- | :--- | :--- |
-| **Guest** | Can read published posts and comments. **Author attribution and timestamps are scrubbed** at the database layer. | *Default role upon registration* |
-| **Member** | Sees **full author attribution**, can create posts (as drafts), upload files, write comments, and share assets. | Enter passcode at `POST /auth/join` |
-| **Admin** | Possesses full moderation rights. Can publish/unpublish posts, delete comments, and scrub files. | Enter passcode at `POST /auth/admin` |
+1. Register via `POST /register` or get a token via `POST /auth/token`
+2. Click the **Authorize** lock icon top right
+3. Paste your token (Bearer prefix added automatically)
+4. You're authenticated — test any route from the browser
 
 ---
 
- 🗄️ Database Schema Design (Prisma)
+## Role-Based Access Control
 
-Built on **PostgreSQL** and modeled with **Prisma** (`prisma/schema.prisma`):
+| Role | How to get it | What they see |
+|---|---|---|
+| **Guest** | Default on register | Published posts and comments — no author names, no timestamps |
+| **Member** | Enter passcode at `POST /auth/join` | Full attribution — who wrote what, when |
+| **Admin** | Enter passcode at `POST /auth/admin` | Everything + can publish/delete posts and comments |
 
-```
-       +-----------------------+
-       |         User          |
-       +-----------------------+
-       | id (PK)               | <----+
-       | username (Unique)     |      |
-       | email (Unique)        |      |
-       | hash                  |      |
-       | isMember (Boolean)    |      |
-       | isAdmin (Boolean)     |      |
-       +-----------------------+      |
-         |         |         |        |
-         | (1)     | (1)     | (1)    |
-         v (N)     v (N)     v (N)    |
-   +----------+  +----------+ +------+----+
-   |   Post   |  | Comment  | |   File    |
-   +----------+  +----------+ +-----------+
-   | id (PK)  |  | id (PK)  | | id (PK)   |
-   | title    |  | text     | | name      |
-   | content  |  | postId   | | size      |
-   | isPub.   |  | authorId | | mimeType  |
-   | authorId |  +----------+ | url       |
-   +----------+               | publicId  |
-         | (1)                | postId?   | --+
-         v (N)                | folderId? | --|--+
-   +----------+               | uploadedBy| --+  |
-   |   File   |               +-----------+      |
-   +----------+                                  |
-                                                 |
-         +---------------------------------------+
-         |
-         v
-   +-----------+          +---------------+
-   |  Folder   | (1)  (N) |   ShareLink   |
-   +-----------+ -------- |---------------+
-   | id (PK)   |          | id (PK)       |
-   | name      |          | token (Unique)|
-   | userId    |          | expiresAt     |
-   +-----------+          +---------------+
-```
+---
 
-⚙️ Hybrid Authentication Flow
+## Hybrid Authentication Flow
+[Client] → Credentials (email/password) → POST /auth/token → [Express Backend]
 
-DevLog implements a highly secure, hybrid stateful-stateless authentication mechanism:
+|
 
-```
-[Client] ---> Credentials (email/password) ---> POST /login ---> [Express Backend]
-                                                                      |
-                     Hash Verification (bcrypt) <---------------------+
-                                      |
-                 +--------------------+--------------------+
-                 | (Session-based)                         | (Token-based)
-                 v                                         v
-         Create Session (PG Table)                 Sign Bearer JWT
-         Set Cookie                                Return JWT + User Payload
-```
+bcrypt.compare() ←--------------------+
 
- 🔑 Key Engineering & Architectural Concepts
+|
 
-1. Database-Level Role Projection (Prisma Select)
-Instead of fetching full database objects and filtering them in Node.js memory (which is inefficient and prone to memory leaks or developer oversight), DevLog leverages **Prisma projection filters** (`select` blocks) dynamically built based on the user's role:
+Sign JWT with payload:
 
-```// Example visibility projection logic
-const getPostProjection = (isMember: boolean, isAdmin: boolean) => {
-  return {
+{ id, email, isMember, isAdmin }
+
+|
+
+Return Bearer JWT
+
+Session auth (`/login`) is used for web-based flows.  
+JWT auth (`Authorization: Bearer <token>`) is used for all `/api/*` routes.
+
+---
+
+## Key Engineering Concepts
+
+### 1. Database-Level Role Projection (Prisma Select)
+
+Instead of fetching full rows and filtering in Node.js, DevLog uses Prisma `select` blocks built dynamically from the user's role:
+
+```js
+const posts = await prisma.post.findMany({
+  where: { isPublished: true },
+  select: {
     id: true,
     title: true,
     content: true,
-    isPublished: true,
-    // Attribute fields are only queried if user is a verified Member or Admin
-    ...(isMember || isAdmin ? {
-      createdAt: true,
-      updatedAt: true,
-      author: {
-        select: { id: true, username: true, email: true }
-      }
-    } : {})
-  };
+    createdAt: isMember,
+    author: isMember ? { select: { username: true } } : false,
+  },
+});
+```
+
+Guests never receive author or timestamp fields — they are excluded at the SQL layer, not filtered after the fact.
+
+### 2. optionalJWT Middleware
+
+Public routes like `GET /api/posts` support both guests and members. A custom middleware tries JWT but never blocks:
+
+```js
+function optionalJWT(req, res, next) {
+    passport.authenticate('jwt', { session: false }, (err, user) => {
+        if (user) req.user = user;
+        next();
+    })(req, res, next);
+}
+```
+
+If a valid token is present, `req.user` is populated with role flags. If not, `req.user` is undefined and the route defaults to guest visibility.
+
+### 3. Memory-Buffered Cloudinary Uploads
+
+Multer is configured with `memoryStorage` — no files touch disk. The buffer is piped directly to Cloudinary via `upload_stream`:
+
+```js
+const uploadToCloudinary = (buffer, filename) => {
+    return new Promise((resolve, reject) => {
+        const options = {
+            resource_type: 'auto',
+            folder: 'uploads',
+            public_id: crypto.randomBytes(16).toString('hex'),
+        };
+        const stream = cloudinary.uploader.upload_stream(options,
+            (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+            }
+        );
+        stream.end(buffer);
+    });
 };
 ```
 
- 2. Hybrid Auths & Stateless JWT Flags
-DevLog includes a secure double-layered auth strategy:
-- **Session Auth:** Standard session cookies stored in PostgreSQL via `connect-pg-simple` for the web administration login.
-- **Stateless JWT Auth:** Client requests include a JWT in the `Authorization: Bearer <token>` header. For efficiency, role flags (`isMember`, `isAdmin`) are embedded in the signed JWT payload. This allows downstream middleware to verify authorization instantly without hitting the database for every single request.
+`result.secure_url` and `result.public_id` are saved to PostgreSQL. Deletion calls `cloudinary.uploader.destroy(file.publicId)`.
 
-3. Graceful Public Access (`optionalJWT` Middleware)
-Routes like `GET /api/posts` must support both registered Members and unauthenticated Guests. DevLog uses a smart custom `optionalJWT` middleware:
-- If a valid token is provided, it populates `req.user` with role flags (`isMember`, `isAdmin`).
-- If no token (or an expired token) is provided, it lets the request pass but leaves `req.user` undefined, defaulting the downstream controller to "Guest" visibility rules.
+### 4. Time-Expiring Share Links
 
-4. Memory-Buffered Cloudinary Uploads
-To prevent disk space exhaustion attacks, Multer is configured to use memory storage buffers. Files are streamed directly to Cloudinary using their SDK's writable streams, avoiding any local file creation in the container.
-```javascript
-// Express upload stream pipe
-const uploadStream = cloudinary.uploader.upload_stream(
-  { folder: "devlog_assets" },
-  (error, result) => {
-    if (error) return res.status(500).json({ error: "Upload failed" });
-    // Save result.secure_url and result.public_id to PostgreSQL via Prisma
-  }
-);
-streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+Engineers generate UUID tokens with explicit expiry for external asset sharing:
+
+```js
+const token = crypto.randomUUID();
+const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 ```
 
-### 5. Time-Expiring Secure Share Links (UUID Tokens)
-Engineers can group assets into folders and generate pre-signed access tokens with a strict expiration duration (`1d`, `7d`, or `30d`). 
-- On request, a UUID token is minted and saved in the DB alongside an explicit `expiresAt` timestamp.
-- When an external visitor attempts to fetch the files via `/public/share/:token`, the server performs a timestamp comparison. If expired, the route returns `410 Gone` and does not query the files.
+On access, the server checks `expiresAt < new Date()` and returns `410 Gone` if expired. No cron jobs — lazy evaluation on request.
 
 ---
 
-## 🗺️ API Route Reference
+## API Routes
 
-### 🔐 Authentication & Role Upgrades
-| Method | Endpoint | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/register` | None | Register a new user account (defaults to Guest) |
-| `POST` | `/auth/token` | None (Local Creds) | Logs in user and returns a signed JWT |
-| `POST` | `/auth/join` | JWT (Guest/Member) | Enter team passcode to upgrade account to **Member** (`isMember = true`) |
-| `POST` | `/auth/admin` | JWT (Guest/Member) | Enter admin passcode to upgrade account to **Admin** (`isAdmin = true`) |
-| `GET` | `/api/me` | JWT | Get authenticated profile info |
+### Auth
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/register` | None | Register with username, email, password |
+| POST | `/login` | None | Session login (form-based) |
+| POST | `/auth/token` | None | Login and get JWT |
+| POST | `/auth/join` | Session | Enter member passcode → isMember: true |
+| POST | `/auth/admin` | Session | Enter admin passcode → isAdmin: true |
+| GET | `/api/me` | JWT | Get current user info |
 
-### 📝 Decision Log Posts (Knowledge Base)
-| Method | Endpoint | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/posts` | None / `optionalJWT` | Get all published posts. Guest view gets scrubbed info; Member/Admin gets full attribution. |
-| `GET` | `/api/posts/:id` | None / `optionalJWT` | Get single post details. Dynamic role-based field scrubbing. |
-| `POST` | `/api/posts` | JWT (Member/Admin) | Create a new post (always starts as a draft) |
-| `PUT` | `/api/posts/:id` | JWT (Author only) | Edit existing post |
-| `DELETE` | `/api/posts/:id` | JWT (Admin only) | Permanently delete a post and scrub metadata |
-| `PATCH` | `/api/posts/:id/publish`| JWT (Admin only) | Toggle published status (`isPublished = true/false`) |
+### Posts
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/posts` | Optional JWT | List published posts. Members see author + timestamp. |
+| GET | `/api/posts/:id` | Optional JWT | Single post. Same visibility logic. |
+| POST | `/api/posts` | JWT | Create post (draft by default) |
+| PUT | `/api/posts/:id` | JWT (author only) | Edit post |
+| DELETE | `/api/posts/:id` | JWT (admin only) | Delete post |
+| PATCH | `/api/posts/:id/publish` | JWT (admin only) | Toggle isPublished |
 
-### 💬 Post Comments & Discussions
-| Method | Endpoint | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/posts/:id/comments` | None / `optionalJWT`| Fetch comments for a post. Members see authors; Guests see anonymous tags. |
-| `POST` | `/api/posts/:id/comments` | JWT (Member/Admin) | Post a comment on a team decision |
-| `DELETE` | `/api/comments/:id` | JWT (Admin only) | Delete an inappropriate comment |
+### Comments
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/posts/:id/comments` | Optional JWT | List comments. Members see author names. |
+| POST | `/api/posts/:id/comments` | JWT | Add comment |
+| DELETE | `/api/comments/:id` | JWT (admin only) | Delete comment |
 
-### 📁 Asset Management & Folders
-| Method | Endpoint | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/files/upload` | JWT (Member/Admin) | Upload an asset (JPEG, PNG, or PDF; max 5MB) to Cloudinary |
-| `GET` | `/api/files` | JWT (Member/Admin) | List all files uploaded by current user |
-| `GET` | `/api/files/:id` | JWT (Member/Admin) | Fetch meta details of a specific file |
-| `DELETE` | `/api/files/:id` | JWT (Owner or Admin) | Delete a file from database and trigger purge in Cloudinary |
-| `POST` | `/api/folders` | JWT (Member/Admin) | Create an asset folder |
-| `GET` | `/api/folders` | JWT (Member/Admin) | Get all directories (returns nested child file counts) |
-| `PUT` | `/api/folders/:id` | JWT (Owner only) | Rename or edit folder |
-| `DELETE` | `/api/folders/:id` | JWT (Owner only) | Delete empty folder |
+### Files
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/files/upload` | JWT | Upload JPEG/PNG/PDF (max 5MB) to Cloudinary |
+| GET | `/api/files` | JWT | List your uploaded files |
+| GET | `/api/files/:id` | JWT | Get file metadata |
+| DELETE | `/api/files/:id` | JWT (owner or admin) | Delete from Cloudinary + DB |
 
-### 🔗 Public Shared Vaults
-| Method | Endpoint | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/folders/:id/share`| JWT (Owner only) | Generates a shared link. Body: `{ duration: "1d" \| "7d" \| "30d" }` |
-| `GET` | `/public/share/:token` | None | Returns shared files. **Fails with 410 Gone if expired.** |
+### Folders & Share Links
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/folders` | JWT | Create folder |
+| GET | `/api/folders` | JWT | List your folders with file count |
+| PUT | `/api/folders/:id` | JWT (owner only) | Rename folder |
+| DELETE | `/api/folders/:id` | JWT (owner only) | Delete folder + files from Cloudinary |
+| POST | `/api/folders/:id/share` | JWT (owner only) | Generate share link (`1d`, `7d`, `30d`) |
+| GET | `/public/share/:token` | None | Access shared folder. Returns 410 if expired. |
 
 ---
 
-## 🗄️ Database Schema Design (Prisma)
-
-Below is the structured relational architecture managing authentication, roles, nested files, and expiring links:
+## Database Schema
 
 ```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id        String    @id @default(uuid())
+  id        Int       @id @default(autoincrement())
   username  String    @unique
   email     String    @unique
-  password  String
+  hash      String
   isMember  Boolean   @default(false)
   isAdmin   Boolean   @default(false)
   createdAt DateTime  @default(now())
-
   posts     Post[]
   comments  Comment[]
-  folders   Folder[]
   files     File[]
 }
 
 model Post {
-  id          String    @id @default(uuid())
+  id          Int       @id @default(autoincrement())
   title       String
   content     String
   isPublished Boolean   @default(false)
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId    Int
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
+  author      User      @relation(fields: [authorId], references: [id])
   comments    Comment[]
+  files       File[]
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  content   String
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  text      String
+  authorId  Int
+  postId    Int
   createdAt DateTime @default(now())
+  author    User     @relation(fields: [authorId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+}
+
+model File {
+  id         Int      @id @default(autoincrement())
+  name       String
+  size       Int
+  mimeType   String
+  url        String
+  publicId   String
+  postId     Int?
+  folderId   Int?
+  uploadedBy Int
+  createdAt  DateTime @default(now())
+  post       Post?    @relation(fields: [postId], references: [id])
+  folder     Folder?  @relation(fields: [folderId], references: [id])
+  uploader   User     @relation(fields: [uploadedBy], references: [id])
 }
 
 model Folder {
-  id        String   @id @default(uuid())
-  name      String
-  ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-
+  id         Int         @id @default(autoincrement())
+  name       String
+  userId     Int
+  createdAt  DateTime    @default(now())
   files      File[]
   shareLinks ShareLink[]
 }
 
-model File {
-  id        String   @id @default(uuid())
-  name      String
-  url       String
-  publicId  String   // Cloudinary secure identification ID for purges
-  size      Int
-  ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  folderId  String?
-  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-}
-
 model ShareLink {
-  id        String   @id @default(uuid())
-  token     String   @unique @default(uuid())
-  folderId  String
-  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  id        Int      @id @default(autoincrement())
+  folderId  Int
+  token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+  folder    Folder   @relation(fields: [folderId], references: [id])
 }
 ```
 
 ---
 
-## ⚡ Setup & Local Development
+## Local Setup
 
-### 1. Prerequisites
-- Node.js (v18 or higher)
-- PostgreSQL database (local or hosted e.g. Railway, Supabase)
-- Cloudinary credentials (free tier is fully compatible)
+### Prerequisites
+- Node.js v18+
+- PostgreSQL
+- Cloudinary account (free tier works)
 
-### 2. Environment Variables
-Create a `.env` file in the root directory:
-```env
+### Environment Variables
+
+Create a `.env` file:
+DB_STRING=postgresql://user:password@localhost:5432/devlog
+
+DATABASE_URL=postgresql://user:password@localhost:5432/devlog
+
+SECRET=your_session_secret
+
+JWT_SECRET=your_jwt_secret
+
 PORT=3000
-DATABASE_URL="postgresql://user:password@localhost:5432/devlog"
-SECRET="your_jwt_secret_key_here"
 
-# passcodes for role upgrades
-MEMBER_PASSCODE="team_devlog_2026"
-ADMIN_PASSCODE="super_admin_pass"
+MEMBER_PASSCODE=your_member_passcode
 
-# Cloudinary credentials (for file assets)
-CLOUDINARY_CLOUD_NAME="your_cloud_name"
-CLOUDINARY_API_KEY="your_api_key"
-CLOUDINARY_API_SECRET="your_api_secret"
-```
+ADMIN_PASSCODE=your_admin_passcode
 
-### 3. Installation & Database Setup
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+
+CLOUDINARY_API_KEY=your_api_key
+
+CLOUDINARY_API_SECRET=your_api_secret
+
+### Install & Run
+
 ```bash
-# Install dependencies
 npm install
-
-# Run database migrations
 npx prisma migrate dev --name init
-
-# Generate Prisma Client
 npx prisma generate
-```
-
-### 4. Fire up the Server
-```bash
-# Start development server
 npm run dev
 ```
-The console will boot the server with a live confirmation:
-```bash
-Server running on http://localhost:3000
-```
+Server runs at `http://localhost:3000`  
+Swagger docs at `http://localhost:3000/api-docs`
+
+**Live deployment:** https://devlog-production-a576.up.railway.app
 
 ---
 
-## 🎯 Key Learning & Takeaways
+## Concepts Learned
 
-By building **DevLog**, several high-impact backend engineering challenges were overcome:
-1. **Dynamic Query Optimization:** Implemented custom field selection directly on PostgreSQL queries to guarantee high-security criteria, ensuring data was never transmitted out of the SQL instance unless authenticated.
-2. **Buffer Pipelining Streams:** Handled high-throughput multi-part file uploads safely in Node.js, streaming files to Cloudinary seamlessly without leaving a residual physical footprint on container filesystems.
-3. **Session vs Stateless Hybrid Auth:** Successfully designed an architecture where administrative functions utilize safe stateful database sessions, while standard API consumers rely on stateful JWT payloads for frictionless scale.
-4. **Active Expirations:** Utilized lazy evaluation on database tokens to maintain pre-signed link validity, avoiding heavy background cron job schedules while returning accurate HTTP error states (`410 Gone`).
+- Passport.js local strategy + JWT strategy
+- bcrypt password hashing
+- Prisma relations and dynamic select projections
+- Multer memoryStorage + Cloudinary upload_stream
+- Role-based access control at the query level
+- UUID share tokens with timestamp expiry
+- PostgreSQL session storage with connect-pg-simple
+- Express global error handling and 404 middleware
+- Swagger/OpenAPI documentation with swagger-jsdoc
