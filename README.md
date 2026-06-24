@@ -2,6 +2,7 @@ DevLog
 
 It's an internal knowledge base for dev teams. Engineers document decisions and upload assets. Access is role-gated — guests see public docs, team members see full attribution, admins moderate. I built role-based visibility at the query level using Prisma select, JWT auth, and time-expiring share links for external asset sharing
 
+
  🛠️ Tech Stack & Architecture
 
 - **Runtime Environment:** Node.js, Express
@@ -14,7 +15,18 @@ It's an internal knowledge base for dev teams. Engineers document decisions and 
 - **Session Store:** PostgreSQL-backed sessions using `connect-pg-simple`
 
 ---
+ **Interactive API Sandbox:** You can test the endpoints live at **[https://devlog-production-a576.up.railway.app/api-docs](https://devlog-production-a576.up.railway.app/api-docs)**
 
+---
+
+## 🛠️ Testing the Live API on Swagger
+
+1. Navigate to `/api-docs`.
+2. Send a `POST` request to `/register` or use one of the seed credentials in the documentation to call `/auth/token`.
+3. Copy the returned `token` string.
+4. Click the **Authorize 🔓** lock icon at the top right of the Swagger UI.
+5. Paste your token (the Bearer prefix is appended automatically) and click **Authorize**.
+6. You are now authenticated! You can write drafts, create folders, upload assets, and query the database directly from the browser window.
 👥 Dynamic Role-Based Access Control
 
 DevLog implements **three primary roles** with custom visibility levels:
