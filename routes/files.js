@@ -7,7 +7,13 @@ const { uploadToCloudinary } = require('../services/cloudinary');
 const cloudinary = require('../config/cloudinary');
 
 // POST /api/files/upload
-router.post('/upload', requireJWT, upload.single('file'), async (req, res) => {
+// POST /api/files/upload
+router.post('/upload', requireJWT, (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) return next(err); // passes Multer errors to global handler
+        next();
+    });
+}, async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
