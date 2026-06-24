@@ -11,7 +11,7 @@ const routes        = require('./routes');
 const postRoutes    = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
 const fileRoutes    = require('./routes/files');
-const foldersRouter = require('./routes/folders');
+const foldersRouter = require('./routes/folder');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -43,5 +43,29 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/folders', foldersRouter);
 app.use(routes);
+// 404
+app.use((req, res) => {
+    res.status(404).json({ error: 'Route not found' });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error(err);
+    
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File too large. Max 5MB.' });
+    }
+    
+    if (err.message === 'Invalid file type. Only JPEG, PNG, and PDF are allowed.') {
+        return res.status(400).json({ error: err.message });
+    }
+
+    if (err.code === 'P2025') {
+        return res.status(404).json({ error: 'Record not found' });
+    }
+
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message });
+});
 
 app.listen(3000, () => console.log('Server running on http://localhost:3000'));
