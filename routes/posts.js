@@ -3,7 +3,29 @@ const router = express.Router();
 const prisma = require('../config/prisma');
 const { requireJWT, requireAdmin, optionalJWT } = require('../middlewares/auth');
 
-// GET /api/posts — public, paginated, role-aware fields
+/**
+ * @swagger
+ * /api/posts:
+ *   get:
+ *     summary: Get all published posts
+ *     tags: [Posts]
+ *     security: []
+ *     description: Members see author name and createdAt. Guests see posts only.
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         example: 10
+ *     responses:
+ *       200:
+ *         description: List of published posts
+ */
 router.get('/', optionalJWT, async (req, res) => {
   const page  = parseInt(req.query.page)  || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -23,7 +45,27 @@ router.get('/', optionalJWT, async (req, res) => {
   res.json(posts);
 });
 
-// GET /api/posts/:id — single post
+/**
+ * @swagger
+ * /api/posts/{id}:
+ *   get:
+ *     summary: Get a single post
+ *     tags: [Posts]
+ *     security: []
+ *     description: Members see author name and createdAt. Guests see post only.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Post object
+ *       404:
+ *         description: Post not found
+ */
 router.get('/:id', optionalJWT, async (req, res) => {
   const isMember = req.user?.isMember;
   const post = await prisma.post.findUnique({
@@ -41,7 +83,34 @@ router.get('/:id', optionalJWT, async (req, res) => {
   res.json(post);
 });
 
-// POST /api/posts — JWT required, draft by default
+/**
+ * @swagger
+ * /api/posts:
+ *   post:
+ *     summary: Create a new post (draft)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, content]
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: How we handle payment retry logic
+ *               content:
+ *                 type: string
+ *                 example: At Razorpay we use exponential backoff...
+ *     responses:
+ *       201:
+ *         description: Post created as draft
+ *       400:
+ *         description: title and content are required
+ */
 router.post('/', requireJWT, async (req, res) => {
   const { title, content } = req.body;
   if (!title || !content) {
@@ -53,7 +122,40 @@ router.post('/', requireJWT, async (req, res) => {
   res.status(201).json(post);
 });
 
-// PUT /api/posts/:id — JWT required, author only
+/**
+ * @swagger
+ * /api/posts/{id}:
+ *   put:
+ *     summary: Edit a post (author only)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Post updated
+ *       403:
+ *         description: You can only edit your own posts
+ *       404:
+ *         description: Post not found
+ */
 router.put('/:id', requireJWT, async (req, res) => {
   const post = await prisma.post.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!post) return res.status(404).json({ error: 'Post not found' });
@@ -67,7 +169,29 @@ router.put('/:id', requireJWT, async (req, res) => {
   res.json(updated);
 });
 
-// DELETE /api/posts/:id — admin only
+/**
+ * @swagger
+ * /api/posts/{id}:
+ *   delete:
+ *     summary: Delete a post (admin only)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Post deleted
+ *       403:
+ *         description: Admins only
+ *       404:
+ *         description: Post not found
+ */
 router.delete('/:id', requireJWT, requireAdmin, async (req, res) => {
   const post = await prisma.post.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!post) return res.status(404).json({ error: 'Post not found' });
@@ -75,7 +199,29 @@ router.delete('/:id', requireJWT, requireAdmin, async (req, res) => {
   res.json({ message: 'Post deleted' });
 });
 
-// PATCH /api/posts/:id/publish — admin only, toggles isPublished
+/**
+ * @swagger
+ * /api/posts/{id}/publish:
+ *   patch:
+ *     summary: Toggle publish/unpublish a post (admin only)
+ *     tags: [Posts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: isPublished toggled
+ *       403:
+ *         description: Admins only
+ *       404:
+ *         description: Post not found
+ */
 router.patch('/:id/publish', requireJWT, requireAdmin, async (req, res) => {
   const post = await prisma.post.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!post) return res.status(404).json({ error: 'Post not found' });
