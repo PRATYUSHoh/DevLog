@@ -1,11 +1,14 @@
+require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const session = require('express-session');
 const passport = require('passport');
 const pgSession = require('connect-pg-simple')(session);
 const pool = require('./config/database');
-require('dotenv').config();
 require('./config/passport');
+
+
 
 const routes        = require('./routes');
 const postRoutes    = require('./routes/posts');
@@ -15,6 +18,13 @@ const foldersRouter = require('./routes/folder');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(cors({
+  origin: '*', // For development, or specify your frontend's URL here for security
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(session({
     store: new pgSession({
