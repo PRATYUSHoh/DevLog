@@ -42,18 +42,7 @@ model Comment {
   post      Post     @relation(fields: [postId], references: [id])
 }
 
-model File {
-  id         Int      @id @default(autoincrement())
-  name       String
-  size       Int
-  mimeType   String
-  url        String
-  postId     Int?
-  uploadedBy Int
-  createdAt  DateTime @default(now())
-  post       Post?    @relation(fields: [postId], references: [id])
-  uploader   User     @relation(fields: [uploadedBy], references: [id])
-}
+
 
 model Folder {
   id         Int         @id @default(autoincrement())
@@ -70,4 +59,18 @@ model ShareLink {
   expiresAt DateTime
   createdAt DateTime @default(now())
   folder    Folder   @relation(fields: [folderId], references: [id])
+}
+
+model File {
+  id         Int      @id @default(autoincrement())
+  name       String
+  size       Int
+  mimeType   String
+  url        String
+  publicId   String             // ← add this
+  postId     Int?
+  uploadedBy Int
+  createdAt  DateTime @default(now())
+  post       Post?    @relation(fields: [postId], references: [id])
+  uploader   User     @relation(fields: [uploadedBy], references: [id])
 }
