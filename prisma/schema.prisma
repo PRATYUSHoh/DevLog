@@ -48,6 +48,7 @@ model Folder {
   id         Int         @id @default(autoincrement())
   name       String
   userId     Int
+  files      File[]   
   createdAt  DateTime    @default(now())
   shareLinks ShareLink[]
 }
@@ -67,10 +68,12 @@ model File {
   size       Int
   mimeType   String
   url        String
-  publicId   String             // ← add this
+  publicId   String
   postId     Int?
+  folderId   Int?
   uploadedBy Int
   createdAt  DateTime @default(now())
   post       Post?    @relation(fields: [postId], references: [id])
+  folder     Folder?  @relation(fields: [folderId], references: [id])
   uploader   User     @relation(fields: [uploadedBy], references: [id])
 }
