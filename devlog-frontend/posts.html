@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevLog — Posts</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="posts.html" class="nav-brand">DevLog</a>
+  <div class="nav-links">
+    <a href="posts.html">posts</a>
+    <a href="dashboard.html">dashboard</a>
+    <span id="nav-user"></span>
+    <span id="nav-auth"></span>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-title">// knowledge base</div>
+
+  <div id="visibility-banner" class="visibility-banner"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <div style="font-size:20px;font-weight:700;color:var(--white);">Decision Log</div>
+    <a href="dashboard.html" class="btn btn-ghost" id="write-btn" style="display:none;">+ Write</a>
+  </div>
+
+  <div id="alert" class="alert" style="display:none;"></div>
+  <div id="posts-list"><div class="loading">// fetching posts</div></div>
+
+  <div style="display:flex;gap:8px;margin-top:20px;" id="pagination">
+    <button class="btn btn-ghost" id="btn-prev" onclick="changePage(-1)" style="display:none;">← prev</button>
+    <button class="btn btn-ghost" id="btn-next" onclick="changePage(1)" style="display:none;">next →</button>
+  </div>
+</div>
+
+<script src="api.js"></script>
+<script>
+  let page = 1;
+  const limit = 10;
+  const user = getUser();
+
+  renderNav();
+
+  // Show write button if logged in
+  if (isLoggedIn()) {
+    document.getElementById('write-btn').style.display = 'inline-block';
+  }
+
+  // Visibility banner
+  const banner = document.getElementById('visibility-banner');
+  if (!isLoggedIn()) {
+    banner.textContent = '// Guest view — author names and timestamps hidden. Login and join team to see full attribution.';
+  } else if (user && !user.isMember) {
+    banner.textContent = `// Logged in as ${user.username} — not a team member yet. Enter member passcode at Dashboard to see full attribution.`;
+  } else if (user && user.isMember) {
+    banner.textContent = `// Team member view — full attribution visible.`;
+    banner.style.borderColor = '#1a2a1a';
+    banner.style.color = '#4a9a4a';
+  }
+
+  async function loadPosts() {
+    try {
+      const posts = await apiFetch(`/api/posts?page=${page}&limit=${limit}`);
+      const list = document.getElementById('posts-list');
+
+      if (!posts.length) {
+        list.innerHTML = '<div class="empty">No published posts yet.<br><br><a href="dashboard.html" style="color:var(--text);">Write the first one →</a></div>';
+        return;
+      }
+
+      list.innerHTML = posts.map(p => `
+        <a href="post.html?id=${p.id}" class="post-card">
+          <div class="post-title">${p.title}</div>
+          <div class="post-meta">
+            ${p.author ? `<span>by ${p.author.username}</span>` : '<span style="color:#333">author hidden</span>'}
+            ${p.createdAt ? `<span>${formatDate(p.createdAt)}</span>` : ''}
+            <span class="badge badge-published">published</span>
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            ${p.content.substring(0, 120)}...
+          </div>
+        </a>
+      `).join('');
+
+      document.getElementById('btn-prev').style.display = page > 1 ? 'inline-block' : 'none';
+      document.getElementById('btn-next').style.display = posts.length === limit ? 'inline-block' : 'none';
+    } catch (e) {
+      showAlert('alert', e.message);
+    }
+  }
+
+  function changePage(dir) {
+    page += dir;
+    loadPosts();
+    window.scrollTo(0, 0);
+  }
+
+  loadPosts();
+</script>
+</body>
+</html>
