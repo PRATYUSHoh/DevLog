@@ -2,7 +2,7 @@ DevLog
 
 It's an internal knowledge base for dev teams. Engineers document decisions and upload assets. Access is role-gated — guests see public docs, team members see full attribution, admins moderate. I built role-based visibility at the query level using Prisma select, JWT auth, and time-expiring share links for external asset sharing
 
-## 🛠️ Tech Stack & Architecture
+ 🛠️ Tech Stack & Architecture
 
 - **Runtime Environment:** Node.js, Express
 - **Database & ORM:** PostgreSQL, Prisma ORM
@@ -15,7 +15,7 @@ It's an internal knowledge base for dev teams. Engineers document decisions and 
 
 ---
 
-## 👥 Dynamic Role-Based Access Control
+👥 Dynamic Role-Based Access Control
 
 DevLog implements **three primary roles** with custom visibility levels:
 
@@ -27,12 +27,12 @@ DevLog implements **three primary roles** with custom visibility levels:
 
 ---
 
-## 🔑 Key Engineering & Architectural Concepts
+ 🔑 Key Engineering & Architectural Concepts
 
-### 1. Database-Level Role Projection (Prisma Select)
+1. Database-Level Role Projection (Prisma Select)
 Instead of fetching full database objects and filtering them in Node.js memory (which is inefficient and prone to memory leaks or developer oversight), DevLog leverages **Prisma projection filters** (`select` blocks) dynamically built based on the user's role:
 
-// Example visibility projection logic
+```// Example visibility projection logic
 const getPostProjection = (isMember: boolean, isAdmin: boolean) => {
   return {
     id: true,
@@ -51,17 +51,17 @@ const getPostProjection = (isMember: boolean, isAdmin: boolean) => {
 };
 ```
 
-### 2. Hybrid Auths & Stateless JWT Flags
+ 2. Hybrid Auths & Stateless JWT Flags
 DevLog includes a secure double-layered auth strategy:
 - **Session Auth:** Standard session cookies stored in PostgreSQL via `connect-pg-simple` for the web administration login.
 - **Stateless JWT Auth:** Client requests include a JWT in the `Authorization: Bearer <token>` header. For efficiency, role flags (`isMember`, `isAdmin`) are embedded in the signed JWT payload. This allows downstream middleware to verify authorization instantly without hitting the database for every single request.
 
-### 3. Graceful Public Access (`optionalJWT` Middleware)
+3. Graceful Public Access (`optionalJWT` Middleware)
 Routes like `GET /api/posts` must support both registered Members and unauthenticated Guests. DevLog uses a smart custom `optionalJWT` middleware:
 - If a valid token is provided, it populates `req.user` with role flags (`isMember`, `isAdmin`).
 - If no token (or an expired token) is provided, it lets the request pass but leaves `req.user` undefined, defaulting the downstream controller to "Guest" visibility rules.
 
-### 4. Memory-Buffered Cloudinary Uploads
+4. Memory-Buffered Cloudinary Uploads
 To prevent disk space exhaustion attacks, Multer is configured to use memory storage buffers. Files are streamed directly to Cloudinary using their SDK's writable streams, avoiding any local file creation in the container.
 ```javascript
 // Express upload stream pipe
