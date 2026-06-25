@@ -19,6 +19,36 @@ An internal knowledge base for dev teams. Engineers document decisions and uploa
 
 Test all endpoints at: https://devlog-production-a576.up.railway.app/api-docs
 
+## Test Credentials (Production)
+
+| Role | Email | Password | What they see |
+|------|-------|----------|---------------|
+| Guest | — | — | No login needed | Posts without author or timestamp |
+| Member | demo@devlog.com | demo1234 | Posts with author name + timestamp |
+| Admin | admin@devlog.com | admin1234 | Everything + publish/delete controls |
+
+
+**Step 1 — Guest view (no login)**
+GET /api/posts → notice no author, no createdAt in response
+
+**Step 2 — Member view**
+POST /auth/token → email: demo@devlog.com, password: demo1234
+→ copy token → click Authorize in Swagger
+GET /api/posts → now author and createdAt appear
+
+**Step 3 — File upload**
+POST /api/files/upload → upload any JPEG/PNG/PDF under 5MB
+
+**Step 4 — Admin controls**
+POST /auth/token → email: admin@devlog.com, password: admin1234 → Authorize
+PATCH /api/posts/2/publish → toggles draft post live
+DELETE /api/comments/1 → admin-only deletion
+
+**Step 5 — Public share link (no auth)**
+GET /public/share/demo-share-token-devlog-2026 → works without any token
+
+Get a JWT: `POST /auth/token` with above credentials → paste token in Swagger Authorize.
+
 1. Register via `POST /register` or get a token via `POST /auth/token`
 2. Click the **Authorize** lock icon top right
 3. Paste your token (Bearer prefix added automatically)
