@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevLog — Shared Folder</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-brand">DevLog</a>
+  <div class="nav-links">
+    <span style="color:var(--muted);font-size:11px;">shared folder</span>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-title">// public share</div>
+  <div id="alert" class="alert" style="display:none;"></div>
+  <div id="content"><div class="loading">// validating link</div></div>
+</div>
+
+<script src="api.js"></script>
+<script>
+  const token = new URLSearchParams(window.location.search).get('token');
+
+  if (!token) {
+    document.getElementById('content').innerHTML = '<div class="empty">No token provided.</div>';
+  } else {
+    loadShare();
+  }
+
+  async function loadShare() {
+    try {
+      const data = await fetch(API + `/public/share/${token}`).then(r => {
+        if (r.status === 410) throw { message: 'This share link has expired.' };
+        if (!r.ok) throw { message: 'Share link not found.' };
+        return r.json();
+      });
+
+      document.title = `DevLog — ${data.folderName}`;
+
+      document.getElementById('content').innerHTML = `
+        <div style="margin-bottom:24px;">
+          <div style="font-size:20px;font-weight:700;color:var(--white);margin-bottom:4px;">${data.folderName}</div>
+          <div style="font-size:11px;color:var(--muted);">Shared folder · ${data.files.length} file(s)</div>
+        </div>
+        <div class="card">
+          ${data.files.length ? data.files.map(f => `
+            <div class="file-item">
+              <div>
+                <div class="file-name">${f.name}</div>
+                <div class="file-meta">${formatSize(f.size)}</div>
+              </div>
+              <a href="${f.url}" target="_blank" class="btn btn-ghost" style="padding:6px 12px;font-size:10px;">view</a>
+            </div>
+          `).join('') : '<div style="color:var(--muted);font-size:12px;">No files in this folder.</div>'}
+        </div>
+        <div style="margin-top:20px;font-size:11px;color:var(--muted);border:1px solid var(--border);padding:10px 14px;border-radius:3px;">
+          This link was shared externally. No login required. Link expires automatically.
+        </div>
+      `;
+    } catch (e) {
+      document.getElementById('content').innerHTML = `
+        <div class="card" style="text-align:center;padding:48px;">
+          <div style="font-size:32px;margin-bottom:16px;">⚠</div>
+          <div style="font-weight:700;color:var(--white);margin-bottom:8px;">${e.message || 'Link invalid'}</div>
+          <div style="font-size:11px;color:var(--muted);">This link may have expired or never existed.</div>
+        </div>
+      `;
+    }
+  }
+</script>
+</body>
+</html>
