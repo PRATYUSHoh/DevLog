@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const session = require('express-session');
 const passport = require('passport');
 const pgSession = require('connect-pg-simple')(session);
@@ -15,7 +16,7 @@ const commentRoutes = require('./routes/comments');
 const fileRoutes    = require('./routes/files');
 const foldersRouter = require('./routes/folder');
 
-const app = express();  // ← define app first
+const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -44,8 +45,9 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec)); // ← after app defined
-
+app.use('/app', express.static(path.join(__dirname, 'frontend')));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/', (req, res) => res.redirect('/app/index.html'));
 app.use('/api/posts', postRoutes);
 app.use('/api/posts/:id/comments', commentRoutes);
 app.use('/api/comments', commentRoutes);
