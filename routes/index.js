@@ -153,6 +153,18 @@ router.post('/auth/token', passport.authenticate('local', { session: false }), (
     res.json({ token });
 });
 
+// POST /auth/refresh — reissue token with current DB roles
+router.post('/auth/refresh', requireJWT, async (req, res) => {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const payload = {
+        id: user.id,
+        email: user.email,
+        isMember: user.isMember,
+        isAdmin: user.isAdmin
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token });
+});
 /**
  * @swagger
  * /auth/join:
@@ -175,7 +187,7 @@ router.post('/auth/token', passport.authenticate('local', { session: false }), (
  *       403:
  *         description: Wrong passcode
  */
-router.post('/auth/join', requireSession, async (req, res, next) => {
+router.post('/auth/join', requireJWT, async (req, res, next) => {
     const { passcode } = req.body;
     if (passcode !== process.env.MEMBER_PASSCODE) {
         return res.status(403).json({ message: 'Wrong passcode.' });
@@ -213,7 +225,7 @@ router.post('/auth/join', requireSession, async (req, res, next) => {
  *       403:
  *         description: Wrong passcode
  */
-router.post('/auth/admin', requireSession, async (req, res, next) => {
+router.post('/auth/admin', requireJWT, async (req, res, next) => {
     const { passcode } = req.body;
     if (passcode !== process.env.ADMIN_PASSCODE) {
         return res.status(403).json({ message: 'Wrong passcode.' });
@@ -300,7 +312,7 @@ router.get('/public/share/:token', async (req, res) => {
 });
 
 router.get('/', (req, res) => {
-    res.send('<h1>Home</h1><p>Please <a href="/register">register</a></p>');
+    res.redirect('/app/index.html');
 });
 
 router.get('/login', (req, res) => {
