@@ -70,14 +70,16 @@ router.post('/', requireJWT, async (req, res) => {
  *         description: List of comments
  */
 router.get('/', optionalJWT, async (req, res) => {
-  const isMember = req.user?.isMember;
+  const isMember = Boolean(req.user?.isMember);
+  const isAdmin = Boolean(req.user?.isAdmin);
+  const canSeeAttribution = isMember || isAdmin;
   const comments = await prisma.comment.findMany({
     where: { postId: parseInt(req.params.id) },
     select: {
       id: true,
       text: true,
       createdAt: true,
-      author: isMember ? { select: { username: true } } : false,
+      author: canSeeAttribution ? { select: { username: true } } : false,
     },
   });
   res.json(comments);

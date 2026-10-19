@@ -174,4 +174,68 @@ describe('DevLog API & Security Test Suite', () => {
             expect(res.body.message).toMatch(/deleted/i);
         });
     });
+
+    describe('4. Team Creation & Password Management', () => {
+        let createdTeamId;
+
+        it('lists teams without exposing their passwords to public/guests', async () => {
+            const res = await request(app).get('/api/teams');
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body)).toBe(true);
+            res.body.forEach(team => {
+                expect(team.password).toBeUndefined();
+                expect(team.name).toBeDefined();
+            });
+        });
+
+        it('allows authenticated user to create a new team and set password', async () => {
+            const res = await request(app)
+                .post('/api/teams')
+                .set('Authorization', `Bearer ${userToken}`)
+                .send({
+                    name: 'Payments SRE Team',
+                    description: 'Reliability and incident response for checkout',
+                    password: 'payments_secret_pass'
+                });
+            expect(res.status).toBe(201);
+            expect(res.body.team.name).toBe('Payments SRE Team');
+            expect(res.body.team.id).toBeDefined();
+            createdTeamId = res.body.team.id;
+        });
+
+        it('rejects joining with incorrect password', async () => {
+            const res = await request(app)
+                .post(`/api/teams/${createdTeamId}/join`)
+                .set('Authorization', `Bearer ${memberToken}`)
+                .send({ password: 'wrong_password_123' });
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/incorrect/i);
+        });
+
+        it('allows user to join with the correct team password', async () => {
+            const res = await request(app)
+                .post(`/api/teams/${createdTeamId}/join`)
+                .set('Authorization', `Bearer ${memberToken}`)
+                .send({ password: 'payments_secret_pass' });
+            expect(res.status).toBe(200);
+            expect(res.body.message).toMatch(/joined/i);
+        });
+
+        it('allows team creator to update team password', async () => {
+            const res = await request(app)
+                .patch(`/api/teams/${createdTeamId}/password`)
+                .set('Authorization', `Bearer ${userToken}`)
+                .send({ password: 'new_sre_secret_2026' });
+            expect(res.status).toBe(200);
+            expect(res.body.message).toMatch(/updated/i);
+        });
+
+        it('allows member to leave team and revert to guest mode', async () => {
+            const res = await request(app)
+                .post(`/api/teams/${createdTeamId}/leave`)
+                .set('Authorization', `Bearer ${userToken}`);
+            expect(res.status).toBe(200);
+            expect(res.body.message).toMatch(/left/i);
+        });
+    });
 });

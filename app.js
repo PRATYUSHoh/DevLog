@@ -17,6 +17,7 @@ const postRoutes    = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
 const fileRoutes    = require('./routes/files');
 const foldersRouter = require('./routes/folder');
+const teamsRouter   = require('./routes/teams');
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use('/api/posts/:id/comments', commentRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/folders', foldersRouter);
+app.use('/api/teams', teamsRouter);
 app.use(routes);
 
 app.use((req, res) => {

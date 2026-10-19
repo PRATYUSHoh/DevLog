@@ -7,6 +7,19 @@ function createMockPrisma() {
     let nextFolderId = 2;
     let nextFileId = 2;
     let nextShareId = 2;
+    let nextTeamId = 2;
+
+    const teams = [
+        {
+            id: 1,
+            name: 'Core Engineering',
+            description: 'Primary engineering team maintaining backend infrastructure and APIs.',
+            password: 'devteam123',
+            ownerId: 1,
+            createdAt: new Date('2026-09-01T10:00:00Z'),
+            members: [1, 2, 3]
+        }
+    ];
 
     const users = [
         {
@@ -16,6 +29,7 @@ function createMockPrisma() {
             hash: bcrypt.hashSync('admin1234', 10),
             isMember: true,
             isAdmin: true,
+            teamId: 1,
             createdAt: new Date('2026-09-01T10:00:00Z')
         },
         {
@@ -25,6 +39,7 @@ function createMockPrisma() {
             hash: bcrypt.hashSync('demo1234', 10),
             isMember: true,
             isAdmin: false,
+            teamId: 1,
             createdAt: new Date('2026-09-05T12:00:00Z')
         },
         {
@@ -34,6 +49,7 @@ function createMockPrisma() {
             hash: bcrypt.hashSync('12345678', 10),
             isMember: true,
             isAdmin: true,
+            teamId: 1,
             createdAt: new Date('2026-09-01T10:00:00Z')
         }
     ];
@@ -335,6 +351,50 @@ function createMockPrisma() {
                 };
                 shareLinks.push(link);
                 return { ...link };
+            }
+        },
+        team: {
+            findMany: async (args = {}) => {
+                return teams.map(t => {
+                    const owner = users.find(u => u.id === t.ownerId);
+                    return {
+                        id: t.id,
+                        name: t.name,
+                        description: t.description || '',
+                        ownerId: t.ownerId,
+                        ownerUsername: owner ? owner.username : 'admin',
+                        memberCount: t.members ? t.members.length : 1,
+                        members: t.members || [],
+                        createdAt: t.createdAt
+                    };
+                });
+            },
+            findUnique: async ({ where }) => {
+                if (where.id) return teams.find(t => t.id === parseInt(where.id)) || null;
+                if (where.name) return teams.find(t => t.name.toLowerCase() === where.name.toLowerCase()) || null;
+                return null;
+            },
+            create: async ({ data }) => {
+                const team = {
+                    id: nextTeamId++,
+                    name: data.name,
+                    description: data.description || '',
+                    password: data.password,
+                    ownerId: parseInt(data.ownerId),
+                    createdAt: new Date(),
+                    members: [parseInt(data.ownerId)]
+                };
+                teams.push(team);
+                return { ...team };
+            },
+            update: async ({ where, data }) => {
+                const team = teams.find(t => t.id === parseInt(where.id));
+                if (!team) throw { code: 'P2025', message: 'Record not found' };
+                if (data.name !== undefined) team.name = data.name;
+                if (data.description !== undefined) team.description = data.description;
+                if (data.password !== undefined) team.password = data.password;
+                if (data.members !== undefined) team.members = data.members;
+                return { ...team };
             }
         }
     };

@@ -259,13 +259,24 @@ router.post('/auth/admin', requireJWT, async (req, res, next) => {
  *       401:
  *         description: Unauthorized
  */
-router.get('/api/me', requireJWT, (req, res) => {
+router.get('/api/me', requireJWT, async (req, res) => {
+    let teamName = null;
+    try {
+        if (req.user.teamId && prisma.team) {
+            const team = await prisma.team.findUnique({ where: { id: req.user.teamId } });
+            if (team) teamName = team.name;
+        }
+    } catch (e) {
+        // ignore
+    }
     res.json({
         id: req.user.id,
         username: req.user.username,
         email: req.user.email,
-        isMember: req.user.isMember,
-        isAdmin: req.user.isAdmin
+        isMember: Boolean(req.user.isMember),
+        isAdmin: Boolean(req.user.isAdmin),
+        teamId: req.user.teamId || null,
+        teamName: teamName
     });
 });
 

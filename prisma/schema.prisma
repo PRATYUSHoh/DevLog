@@ -14,10 +14,22 @@ model User {
   hash      String
   isMember  Boolean   @default(false)
   isAdmin   Boolean   @default(false)
+  teamId    Int?
+  team      Team?     @relation(fields: [teamId], references: [id])
   createdAt DateTime  @default(now())
   posts     Post[]
   comments  Comment[]
   files     File[]
+}
+
+model Team {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  password    String
+  ownerId     Int
+  createdAt   DateTime @default(now())
+  members     User[]
 }
 
 model Post {

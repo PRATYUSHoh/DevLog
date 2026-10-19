@@ -85,15 +85,15 @@
     }
 
     if (!isLoggedIn()) {
-      banner.textContent = '// Guest view — author names and timestamps hidden. Login and join team to see full attribution.';
+      banner.textContent = '// Guest view (Public) — author names and timestamps hidden. Login and join a team to see internal attribution.';
       banner.style.borderColor = 'var(--border)';
       banner.style.color = 'var(--muted)';
     } else if (user && !user.isMember) {
-      banner.textContent = `// Logged in as ${user.username} — not a team member yet. Enter member passcode at Dashboard to see full attribution.`;
-      banner.style.borderColor = 'var(--border)';
-      banner.style.color = 'var(--muted)';
+      banner.textContent = `// Logged in as ${user.username} — not in a team (Guest view). Author names and timestamps are redacted. Join or create a team in Dashboard → Teams to unlock full attribution.`;
+      banner.style.borderColor = '#3d3010';
+      banner.style.color = '#eab308';
     } else if (user && user.isMember) {
-      banner.textContent = `// Team member view — full attribution visible.`;
+      banner.textContent = `// Team member view (${user.teamName || 'Internal Engineering'}) — full attribution visible.`;
       banner.style.borderColor = '#1a2a1a';
       banner.style.color = '#4ade80';
     }
@@ -157,8 +157,8 @@
             <span class="badge ${p.isPublished ? 'badge-published' : 'badge-draft'}">${p.isPublished ? 'published' : 'draft'}</span>
           </div>
           <div class="post-meta">
-            ${p.author ? `<span>by ${p.author.username}</span>` : '<span style="color:#333">author hidden</span>'}
-            ${p.createdAt ? `<span>${formatDate(p.createdAt)}</span>` : ''}
+            ${p.author ? `<span>by ${p.author.username}</span>` : '<span style="color:#737373;">author hidden (not in team)</span>'}
+            ${p.createdAt ? `<span>${formatDate(p.createdAt)}</span>` : '<span style="color:#525252;">date hidden</span>'}
             ${user?.isAdmin && !p.isPublished ? '<span style="color:#eab308;">★ Needs Admin Approval</span>' : ''}
           </div>
           <div style="margin-top:8px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
