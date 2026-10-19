@@ -1,5 +1,7 @@
 # DevLog
 
+[![CI Pipeline](https://github.com/rishu442005/devlog/actions/workflows/ci.yml/badge.svg)](https://github.com/rishu442005/devlog/actions)
+
 An internal knowledge base for dev teams. Engineers document decisions and upload assets. Access is role-gated — guests see public docs, team members see full attribution, admins moderate. Built role-based visibility at the query level using Prisma select, JWT auth, and time-expiring share links for external asset sharing.
 
 ---
@@ -8,6 +10,9 @@ An internal knowledge base for dev teams. Engineers document decisions and uploa
 
 - **Runtime:** Node.js, Express
 - **Database & ORM:** PostgreSQL, Prisma ORM
+- **Security & Hardening:** Helmet (HTTP security headers), express-rate-limit (brute-force mitigation)
+- **Automated Testing:** Jest, Supertest (16 integration tests covering RBAC, security headers, and draft moderation)
+- **CI/CD:** GitHub Actions Matrix CI (Node 18.x & 20.x)
 - **Auth:** Passport.js (Local + JWT), bcrypt, express-session
 - **File Storage:** Multer (memoryStorage), Cloudinary SDK
 - **Session Store:** PostgreSQL via connect-pg-simple
@@ -326,6 +331,34 @@ npm run dev
 ```
 Server runs at `http://localhost:3000`  
 Swagger docs at `http://localhost:3000/api-docs`
+
+---
+
+## Automated Test Suite & CI/CD Pipeline
+
+DevLog includes an end-to-end integration test suite powered by **Jest** and **Supertest** running in GitHub Actions:
+
+```bash
+# Run integration test suite
+npm test
+```
+
+### Test Coverage Highlights (16 Test Cases):
+1. **Security & Defensive Engineering:**
+   * Helmet HTTP headers (`X-Content-Type-Options: nosniff`, etc.).
+   * IP-based rate limiting on sensitive authentication endpoints (`RateLimit-*` headers).
+2. **Field-Level Data Redaction (RBAC):**
+   * Verification that anonymous guests receive zero author attribution or timestamps on `GET /api/posts` and `GET /api/posts/:id`.
+   * Verification that verified team members and administrators receive full attribution (`author.username` and `createdAt`).
+3. **Draft & Moderation Lifecycle:**
+   * Posts default to draft status (`isPublished: false`).
+   * Unpublished drafts return 404 to guests, but are accessible by author.
+   * Administrative access to full drafts queue (`GET /api/posts?status=draft`).
+   * Enforcement of 403 Forbidden when regular members attempt to publish.
+   * Administrative single-click publish and unpublish transitions.
+   * Post deletion by admin.
+
+---
 
 **Live deployment:** https://devlog-production-a576.up.railway.app
 

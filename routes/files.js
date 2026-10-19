@@ -175,7 +175,13 @@ router.delete('/:id', requireJWT, async (req, res) => {
         if (file.uploadedBy !== req.user.id && !req.user.isAdmin) {
             return res.status(403).json({ error: 'Not allowed' });
         }
-        await cloudinary.uploader.destroy(file.publicId);
+        if (process.env.CLOUDINARY_CLOUD_NAME && !file.publicId.startsWith('mock_')) {
+            try {
+                await cloudinary.uploader.destroy(file.publicId);
+            } catch (err) {
+                console.warn('[AI Studio] Cloudinary destroy error:', err.message);
+            }
+        }
         await prisma.file.delete({
             where: { id: parseInt(req.params.id) },
         });

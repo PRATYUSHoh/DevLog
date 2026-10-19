@@ -29,17 +29,37 @@ const { requireJWT, requireAdmin, optionalJWT } = require('../middlewares/auth')
 router.get('/', optionalJWT, async (req, res) => {
   const page  = parseInt(req.query.page)  || 1;
   const limit = parseInt(req.query.limit) || 10;
-  const isMember = req.user?.isMember;
+  const isMember = Boolean(req.user?.isMember);
+  const isAdmin = Boolean(req.user?.isAdmin);
+
+  const where = {};
+  if (req.query.status === 'draft') {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required to view drafts' });
+    }
+    where.isPublished = false;
+    if (!isAdmin) {
+      where.authorId = req.user.id;
+    }
+  } else if (req.query.status === 'all') {
+    if (!isAdmin) {
+      where.isPublished = true;
+    }
+  } else {
+    where.isPublished = true;
+  }
+
   const posts = await prisma.post.findMany({
-    where: { isPublished: true },
+    where,
     skip: (page - 1) * limit,
     take: limit,
     select: {
       id: true,
       title: true,
       content: true,
-      createdAt: isMember,
-      author: isMember ? { select: { username: true } } : false,
+      isPublished: true,
+      createdAt: isMember || isAdmin,
+      author: (isMember || isAdmin) ? { select: { username: true } } : false,
     },
   });
   res.json(posts);
@@ -67,7 +87,10 @@ router.get('/', optionalJWT, async (req, res) => {
  *         description: Post not found
  */
 router.get('/:id', optionalJWT, async (req, res) => {
-  const isMember = req.user?.isMember;
+  const isMember = Boolean(req.user?.isMember);
+  const isAdmin = Boolean(req.user?.isAdmin);
+  const canSeeAttribution = isMember || isAdmin;
+
   const post = await prisma.post.findUnique({
     where: { id: parseInt(req.params.id) },
     select: {
@@ -75,11 +98,20 @@ router.get('/:id', optionalJWT, async (req, res) => {
       title: true,
       content: true,
       isPublished: true,
-      createdAt: isMember,
-      author: isMember ? { select: { username: true } } : false,
+      authorId: true,
+      createdAt: canSeeAttribution,
+      author: canSeeAttribution ? { select: { username: true } } : false,
     },
   });
   if (!post) return res.status(404).json({ error: 'Post not found' });
+
+  if (!post.isPublished) {
+    const isAuthor = Boolean(req.user && req.user.id === post.authorId);
+    if (!isAdmin && !isAuthor) {
+      return res.status(404).json({ error: 'Post not found or not published' });
+    }
+  }
+
   res.json(post);
 });
 

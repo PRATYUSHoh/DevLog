@@ -1,11 +1,6 @@
 node_modules/
 .env
-<<<<<<< HEAD
-
 /lib/generated/prisma
-=======
->>>>>>> 15720827df064089f44f83c3ca584787b34ec670
-.env
 test6mb.txt
 *.exe
 WIN_20241104_22_26_30_Pro.jpg

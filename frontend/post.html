@@ -43,16 +43,32 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const postId = params.get('id');
-  const user = getUser();
+  let user = getUser();
 
   renderNav();
 
   if (!postId) window.location.href = 'posts.html';
 
+  async function syncCurrentUser() {
+    if (isLoggedIn()) {
+      try {
+        const freshUser = await apiFetch('/api/me');
+        if (freshUser && freshUser.id) {
+          user = freshUser;
+          localStorage.setItem('devlog_user', JSON.stringify(freshUser));
+          renderNav();
+        }
+      } catch (e) {
+        console.warn('Could not sync current user profile:', e);
+      }
+    }
+  }
+
   async function loadPost() {
     try {
+      await syncCurrentUser();
       const post = await apiFetch(`/api/posts/${postId}`);
-      const isAdmin = user?.isAdmin;
+      const isAdmin = !!user?.isAdmin;
 
       document.title = `DevLog — ${post.title}`;
 
@@ -159,14 +175,16 @@
   }
 
   async function deleteComment(id) {
-    if (!confirm('Delete this comment?')) return;
     try {
-      await apiFetch(`/api/comments/${id}`, { method: 'DELETE' });
-      loadComments();
+      const res = await apiFetch(`/api/comments/${id}`, { method: 'DELETE' });
+      showAlert('alert', res.message || 'Comment deleted successfully.', 'success');
+      await loadComments();
     } catch (e) {
-      showAlert('alert', e.message);
+      console.error('Failed to delete comment:', e);
+      showAlert('alert', e.message || 'Failed to delete comment.');
     }
   }
+  window.deleteComment = deleteComment;
 
   loadPost();
 </script>

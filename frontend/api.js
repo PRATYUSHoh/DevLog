@@ -1,4 +1,4 @@
-const API = 'https://devlog-production-a576.up.railway.app';
+const API = '';
 
 function getToken() { return localStorage.getItem('devlog_token'); }
 function getUser() {

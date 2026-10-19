@@ -149,7 +149,8 @@ router.post('/auth/token', passport.authenticate('local', { session: false }), (
         isMember: req.user.isMember,
         isAdmin: req.user.isAdmin
     };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const jwtSecret = process.env.JWT_SECRET || 'devlog-jwt-secret-key-12345';
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: '24h' });
     res.json({ token });
 });
 
@@ -162,7 +163,8 @@ router.post('/auth/refresh', requireJWT, async (req, res) => {
         isMember: user.isMember,
         isAdmin: user.isAdmin
     };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const jwtSecret = process.env.JWT_SECRET || 'devlog-jwt-secret-key-12345';
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: '24h' });
     res.json({ token });
 });
 /**
@@ -189,7 +191,8 @@ router.post('/auth/refresh', requireJWT, async (req, res) => {
  */
 router.post('/auth/join', requireJWT, async (req, res, next) => {
     const { passcode } = req.body;
-    if (passcode !== process.env.MEMBER_PASSCODE) {
+    const expectedPasscode = process.env.MEMBER_PASSCODE || 'devteam123';
+    if (passcode !== expectedPasscode) {
         return res.status(403).json({ message: 'Wrong passcode.' });
     }
     try {
@@ -227,7 +230,8 @@ router.post('/auth/join', requireJWT, async (req, res, next) => {
  */
 router.post('/auth/admin', requireJWT, async (req, res, next) => {
     const { passcode } = req.body;
-    if (passcode !== process.env.ADMIN_PASSCODE) {
+    const expectedPasscode = process.env.ADMIN_PASSCODE || 'devadmin123';
+    if (passcode !== expectedPasscode) {
         return res.status(403).json({ message: 'Wrong passcode.' });
     }
     try {

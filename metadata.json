@@ -1,0 +1,6 @@
+{
+  "name": "DevLog",
+  "description": "Internal knowledge base and developer decision log for engineering teams to document decisions and share assets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

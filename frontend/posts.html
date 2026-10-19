@@ -29,6 +29,12 @@
   </div>
 
   <div id="alert" class="alert" style="display:none;"></div>
+
+  <div class="tabs" id="post-filter-tabs" style="margin-bottom:20px;display:none;">
+    <div class="tab active" id="tab-filter-published" onclick="switchFilter('published')">Published Posts</div>
+    <div class="tab" id="tab-filter-draft" onclick="switchFilter('draft')">Drafts & Unpublished <span id="draft-count-badge" class="badge badge-draft" style="display:none;margin-left:6px;font-size:10px;padding:1px 6px;">0</span></div>
+  </div>
+
   <div id="posts-list"><div class="loading">// fetching posts</div></div>
 
   <div style="display:flex;gap:8px;margin-top:20px;" id="pagination">
@@ -41,44 +47,119 @@
 <script>
   let page = 1;
   const limit = 10;
-  const user = getUser();
+  let currentFilter = 'published';
+  let user = getUser();
 
   renderNav();
 
-  // Show write button if logged in
-  if (isLoggedIn()) {
-    document.getElementById('write-btn').style.display = 'inline-block';
+  async function syncCurrentUser() {
+    if (isLoggedIn()) {
+      try {
+        const freshUser = await apiFetch('/api/me');
+        if (freshUser && freshUser.id) {
+          user = freshUser;
+          localStorage.setItem('devlog_user', JSON.stringify(freshUser));
+          renderNav();
+          updateBanner();
+          checkDraftsCount();
+        }
+      } catch (e) {
+        console.warn('Could not sync user profile:', e);
+      }
+    }
   }
 
-  // Visibility banner
-  const banner = document.getElementById('visibility-banner');
-  if (!isLoggedIn()) {
-    banner.textContent = '// Guest view — author names and timestamps hidden. Login and join team to see full attribution.';
-  } else if (user && !user.isMember) {
-    banner.textContent = `// Logged in as ${user.username} — not a team member yet. Enter member passcode at Dashboard to see full attribution.`;
-  } else if (user && user.isMember) {
-    banner.textContent = `// Team member view — full attribution visible.`;
-    banner.style.borderColor = '#1a2a1a';
-    banner.style.color = '#4a9a4a';
+  function updateBanner() {
+    const banner = document.getElementById('visibility-banner');
+    if (currentFilter === 'draft') {
+      if (user?.isAdmin) {
+        banner.textContent = '// Admin view — showing all unpublished drafts. Click any post to review, publish, or delete.';
+        banner.style.borderColor = '#3d3010';
+        banner.style.color = '#eab308';
+      } else {
+        banner.textContent = '// Drafts view — showing your unpublished posts awaiting admin approval.';
+        banner.style.borderColor = '#3d3010';
+        banner.style.color = '#eab308';
+      }
+      return;
+    }
+
+    if (!isLoggedIn()) {
+      banner.textContent = '// Guest view — author names and timestamps hidden. Login and join team to see full attribution.';
+      banner.style.borderColor = 'var(--border)';
+      banner.style.color = 'var(--muted)';
+    } else if (user && !user.isMember) {
+      banner.textContent = `// Logged in as ${user.username} — not a team member yet. Enter member passcode at Dashboard to see full attribution.`;
+      banner.style.borderColor = 'var(--border)';
+      banner.style.color = 'var(--muted)';
+    } else if (user && user.isMember) {
+      banner.textContent = `// Team member view — full attribution visible.`;
+      banner.style.borderColor = '#1a2a1a';
+      banner.style.color = '#4ade80';
+    }
+  }
+
+  if (isLoggedIn()) {
+    document.getElementById('write-btn').style.display = 'inline-block';
+    document.getElementById('post-filter-tabs').style.display = 'flex';
+    checkDraftsCount();
+  }
+
+  updateBanner();
+
+  async function checkDraftsCount() {
+    if (!isLoggedIn()) return;
+    try {
+      const drafts = await apiFetch('/api/posts?status=draft&limit=100');
+      const badge = document.getElementById('draft-count-badge');
+      if (badge && drafts && drafts.length > 0) {
+        badge.textContent = drafts.length;
+        badge.style.display = 'inline-block';
+      } else if (badge) {
+        badge.style.display = 'none';
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function switchFilter(status) {
+    currentFilter = status;
+    page = 1;
+    document.getElementById('tab-filter-published').classList.toggle('active', status === 'published');
+    document.getElementById('tab-filter-draft').classList.toggle('active', status === 'draft');
+    updateBanner();
+    loadPosts();
   }
 
   async function loadPosts() {
+    const list = document.getElementById('posts-list');
+    list.innerHTML = '<div class="loading">// fetching posts</div>';
     try {
-      const posts = await apiFetch(`/api/posts?page=${page}&limit=${limit}`);
-      const list = document.getElementById('posts-list');
+      const query = currentFilter === 'draft' ? `status=draft&page=${page}&limit=${limit}` : `page=${page}&limit=${limit}`;
+      const posts = await apiFetch(`/api/posts?${query}`);
 
       if (!posts.length) {
-        list.innerHTML = '<div class="empty">No published posts yet.<br><br><a href="dashboard.html" style="color:var(--text);">Write the first one →</a></div>';
+        if (currentFilter === 'draft') {
+          list.innerHTML = '<div class="empty">No draft posts found.<br><br><a href="dashboard.html" style="color:var(--text);">Write a new post on Dashboard →</a></div>';
+        } else {
+          list.innerHTML = '<div class="empty">No published posts yet.<br><br><a href="dashboard.html" style="color:var(--text);">Write the first one →</a></div>';
+        }
+        document.getElementById('btn-prev').style.display = 'none';
+        document.getElementById('btn-next').style.display = 'none';
         return;
       }
 
       list.innerHTML = posts.map(p => `
         <a href="post.html?id=${p.id}" class="post-card">
-          <div class="post-title">${p.title}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div class="post-title">${p.title}</div>
+            <span class="badge ${p.isPublished ? 'badge-published' : 'badge-draft'}">${p.isPublished ? 'published' : 'draft'}</span>
+          </div>
           <div class="post-meta">
             ${p.author ? `<span>by ${p.author.username}</span>` : '<span style="color:#333">author hidden</span>'}
             ${p.createdAt ? `<span>${formatDate(p.createdAt)}</span>` : ''}
-            <span class="badge badge-published">published</span>
+            ${user?.isAdmin && !p.isPublished ? '<span style="color:#eab308;">★ Needs Admin Approval</span>' : ''}
           </div>
           <div style="margin-top:8px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             ${p.content.substring(0, 120)}...
@@ -99,6 +180,7 @@
     window.scrollTo(0, 0);
   }
 
+  syncCurrentUser();
   loadPosts();
 </script>
 </body>

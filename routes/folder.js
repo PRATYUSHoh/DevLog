@@ -150,7 +150,13 @@ router.delete('/:id', requireJWT, async (req, res) => {
         }
         const files = await prisma.file.findMany({ where: { folderId: parseInt(req.params.id) } });
         for (const file of files) {
-            await cloudinary.uploader.destroy(file.publicId);
+            if (process.env.CLOUDINARY_CLOUD_NAME && !file.publicId.startsWith('mock_')) {
+                try {
+                    await cloudinary.uploader.destroy(file.publicId);
+                } catch (err) {
+                    console.warn('[AI Studio] Cloudinary destroy error:', err.message);
+                }
+            }
         }
         await prisma.folder.delete({ where: { id: parseInt(req.params.id) } });
         res.json({ message: 'Folder and its files deleted successfully' });

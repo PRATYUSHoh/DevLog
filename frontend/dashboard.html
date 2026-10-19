@@ -28,6 +28,7 @@
   <!-- TABS -->
   <div class="tabs">
     <div class="tab active" onclick="switchTab('write')">Write Post</div>
+    <div class="tab" onclick="switchTab('drafts')">Drafts <span id="drafts-count-badge" class="badge badge-draft" style="display:none;margin-left:6px;font-size:10px;padding:1px 6px;">0</span></div>
     <div class="tab" onclick="switchTab('files')">Files</div>
     <div class="tab" onclick="switchTab('folders')">Folders</div>
     <div class="tab" onclick="switchTab('account')">Account</div>
@@ -47,6 +48,18 @@
       <button class="btn btn-primary" onclick="createPost()">Save as Draft</button>
       <span style="font-size:11px;color:var(--muted);margin-left:12px;">Admin must publish before it's public</span>
     </div>
+  </div>
+
+  <!-- DRAFTS -->
+  <div id="tab-drafts" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="section-label" style="margin:0;">// draft & unpublished posts</div>
+      <button class="btn btn-ghost" onclick="loadDrafts()" style="font-size:11px;padding:4px 10px;">↻ Refresh</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;" id="drafts-description">
+      Review drafts before making them public. Admins can publish or delete any draft.
+    </div>
+    <div id="drafts-list"><div class="loading">// loading drafts</div></div>
   </div>
 
   <!-- FILES -->
@@ -129,13 +142,17 @@
   else roleText += ' · Role: Guest (enter passcode under Account to upgrade)';
   banner.textContent = roleText;
 
+  const tabsList = ['write', 'drafts', 'files', 'folders', 'account'];
+
   function switchTab(tab) {
-    ['write','files','folders','account'].forEach(t => {
-      document.getElementById(`tab-${t}`).style.display = t === tab ? 'block' : 'none';
+    tabsList.forEach(t => {
+      const el = document.getElementById(`tab-${t}`);
+      if (el) el.style.display = t === tab ? 'block' : 'none';
     });
-    document.querySelectorAll('.tab').forEach((el, i) => {
-      el.classList.toggle('active', ['write','files','folders','account'][i] === tab);
+    document.querySelectorAll('.tabs .tab').forEach((el, i) => {
+      el.classList.toggle('active', tabsList[i] === tab);
     });
+    if (tab === 'drafts') loadDrafts();
     if (tab === 'files') loadFiles();
     if (tab === 'folders') loadFolders();
   }
@@ -150,9 +167,82 @@
         method: 'POST',
         body: JSON.stringify({ title, content })
       });
-      showAlert('alert', `Post saved as draft (id: ${post.id}). Admin must publish it.`, 'success');
+      showAlert('alert', `Post saved as draft (id: ${post.id})! You can review or publish it in the Drafts tab.`, 'success');
       document.getElementById('post-title').value = '';
       document.getElementById('post-content').value = '';
+      loadDrafts();
+    } catch (e) {
+      showAlert('alert', e.message);
+    }
+  }
+
+  // DRAFTS MANAGEMENT
+  async function loadDrafts() {
+    const list = document.getElementById('drafts-list');
+    if (!list) return;
+    list.innerHTML = '<div class="loading">// loading drafts</div>';
+    try {
+      const drafts = await apiFetch('/api/posts?status=draft');
+      updateDraftsBadge(drafts.length);
+
+      if (!drafts.length) {
+        list.innerHTML = '<div class="empty">No draft posts found.<br><br><span style="color:var(--muted);">All posts are currently published, or no drafts have been created yet.</span><br><br><button class="btn btn-ghost" onclick="switchTab(\'write\')">Write a New Post →</button></div>';
+        return;
+      }
+
+      list.innerHTML = drafts.map(p => `
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
+            <div style="font-size:15px;font-weight:700;color:var(--white);">${p.title}</div>
+            <span class="badge badge-draft">draft</span>
+          </div>
+          <div class="post-meta" style="margin-bottom:12px;">
+            ${p.author ? `<span>by <strong>${p.author.username}</strong></span>` : ''}
+            ${p.createdAt ? `<span>${formatDate(p.createdAt)}</span>` : ''}
+            <span>id: ${p.id}</span>
+          </div>
+          <div style="font-size:13px;color:#ccc;line-height:1.6;margin-bottom:16px;white-space:pre-wrap;">${p.content.length > 200 ? p.content.substring(0, 200) + '...' : p.content}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <a href="post.html?id=${p.id}" class="btn btn-ghost" style="padding:6px 14px;font-size:12px;">Open Post →</a>
+            ${user?.isAdmin ? `
+              <button class="btn btn-primary" onclick="publishDraftFromDashboard(${p.id})" style="padding:6px 14px;font-size:12px;">Publish Now</button>
+              <button class="btn btn-danger" onclick="deleteDraftFromDashboard(${p.id})" style="padding:6px 14px;font-size:12px;">Delete</button>
+            ` : '<span style="font-size:11px;color:var(--muted);">Awaiting admin publishing</span>'}
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      list.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+    }
+  }
+
+  function updateDraftsBadge(count) {
+    const badge = document.getElementById('drafts-count-badge');
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }
+
+  async function publishDraftFromDashboard(id) {
+    try {
+      await apiFetch(`/api/posts/${id}/publish`, { method: 'PATCH' });
+      showAlert('alert', `Post #${id} published successfully! It is now live in Knowledge Base.`, 'success');
+      loadDrafts();
+    } catch (e) {
+      showAlert('alert', e.message);
+    }
+  }
+
+  async function deleteDraftFromDashboard(id) {
+    try {
+      await apiFetch(`/api/posts/${id}`, { method: 'DELETE' });
+      showAlert('alert', `Draft #${id} deleted.`, 'success');
+      loadDrafts();
     } catch (e) {
       showAlert('alert', e.message);
     }
@@ -308,12 +398,17 @@ async function becomeAdmin() {
     if (!passcode) return showAlert('alert', 'Enter passcode.');
     try {
         await apiFetch('/auth/admin', { method: 'POST', body: JSON.stringify({ passcode }) });
-        showAlert('alert', 'You are now an admin! Login again to refresh token.', 'success');
+        const data = await apiFetch('/auth/refresh', { method: 'POST' });
+        const me = await apiFetch('/api/me', { headers: { 'Authorization': `Bearer ${data.token}` } });
+        setAuth(data.token, me);
+        showAlert('alert', 'You are now an admin! Permissions unlocked.', 'success');
+        setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
         showAlert('alert', e.message);
     }
 }
 
+loadDrafts();
 </script>
 </body>
 </html>

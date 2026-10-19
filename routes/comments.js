@@ -107,9 +107,10 @@ router.get('/', optionalJWT, async (req, res) => {
  *         description: Comment not found
  */
 router.delete('/:commentId', requireJWT, requireAdmin, async (req, res) => {
-  const comment = await prisma.comment.findUnique({ where: { id: parseInt(req.params.commentId) } });
+  const commentId = parseInt(req.params.commentId);
+  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
   if (!comment) return res.status(404).json({ error: 'Comment not found' });
-  await prisma.comment.delete({ where: { id: parseInt(req.params.commentId) } });
+  await prisma.comment.delete({ where: { id: commentId } });
   res.json({ message: 'Comment deleted' });
 });
 
