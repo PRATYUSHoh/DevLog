@@ -6,3 +6,5 @@ test6mb.txt
 WIN_20241104_22_26_30_Pro.jpg
 *.Zone.Identifier
 *:Zone.Identifier
+dist/
+cookies.txt
