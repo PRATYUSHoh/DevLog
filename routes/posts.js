@@ -49,6 +49,10 @@ router.get('/', optionalJWT, async (req, res) => {
     where.isPublished = true;
   }
 
+  if (req.query.teamId) {
+    where.teamId = parseInt(req.query.teamId);
+  }
+
   const posts = await prisma.post.findMany({
     where,
     skip: (page - 1) * limit,
@@ -58,6 +62,8 @@ router.get('/', optionalJWT, async (req, res) => {
       title: true,
       content: true,
       isPublished: true,
+      teamId: true,
+      team: { select: { id: true, name: true } },
       createdAt: isMember || isAdmin,
       author: (isMember || isAdmin) ? { select: { username: true } } : false,
     },
@@ -99,6 +105,8 @@ router.get('/:id', optionalJWT, async (req, res) => {
       content: true,
       isPublished: true,
       authorId: true,
+      teamId: true,
+      team: { select: { id: true, name: true } },
       createdAt: canSeeAttribution,
       author: canSeeAttribution ? { select: { username: true } } : false,
     },
@@ -137,6 +145,9 @@ router.get('/:id', optionalJWT, async (req, res) => {
  *               content:
  *                 type: string
  *                 example: At Razorpay we use exponential backoff...
+ *               teamId:
+ *                 type: integer
+ *                 example: 1
  *     responses:
  *       201:
  *         description: Post created as draft
@@ -144,12 +155,18 @@ router.get('/:id', optionalJWT, async (req, res) => {
  *         description: title and content are required
  */
 router.post('/', requireJWT, async (req, res) => {
-  const { title, content } = req.body;
+  const { title, content, teamId } = req.body;
   if (!title || !content) {
     return res.status(400).json({ error: 'title and content are required' });
   }
   const post = await prisma.post.create({
-    data: { title, content, authorId: req.user.id, isPublished: false },
+    data: {
+      title,
+      content,
+      authorId: req.user.id,
+      teamId: teamId ? parseInt(teamId) : null,
+      isPublished: false
+    },
   });
   res.status(201).json(post);
 });

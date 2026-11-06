@@ -55,7 +55,8 @@ router.post('/upload', requireJWT, (req, res, next) => {
                 url: result.secure_url,
                 publicId: result.public_id,
                 uploadedBy: req.user.id,
-                postId: req.query.postId ? parseInt(req.query.postId) : null,
+                postId: req.query.postId ? parseInt(req.query.postId) : (req.body?.postId ? parseInt(req.body.postId) : null),
+                folderId: req.body?.folderId ? parseInt(req.body.folderId) : (req.query?.folderId ? parseInt(req.query.folderId) : null),
             },
         });
         res.status(201).json({ message: 'File uploaded successfully', file: fileRecord });

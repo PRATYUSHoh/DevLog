@@ -30,6 +30,8 @@ model Team {
   ownerId     Int
   createdAt   DateTime @default(now())
   members     User[]
+  posts       Post[]
+  folders     Folder[]
 }
 
 model Post {
@@ -38,6 +40,8 @@ model Post {
   content     String
   isPublished Boolean   @default(false)
   authorId    Int
+  teamId      Int?
+  team        Team?     @relation(fields: [teamId], references: [id])
   createdAt   DateTime  @default(now())
   author      User      @relation(fields: [authorId], references: [id])
   comments    Comment[]
@@ -54,12 +58,12 @@ model Comment {
   post      Post     @relation(fields: [postId], references: [id])
 }
 
-
-
 model Folder {
   id         Int         @id @default(autoincrement())
   name       String
   userId     Int
+  teamId     Int?
+  team       Team?       @relation(fields: [teamId], references: [id])
   files      File[]   
   createdAt  DateTime    @default(now())
   shareLinks ShareLink[]

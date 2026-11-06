@@ -43,6 +43,13 @@
         <input type="text" id="post-title" placeholder="How we handle payment retry logic at Razorpay">
       </div>
       <div class="form-group">
+        <label>Target Team / Scope</label>
+        <select id="post-team" style="background:#0a0a0a;border:1px solid #333;color:#eee;padding:8px 12px;border-radius:4px;width:100%;font-size:13px;">
+          <option value="">General / Organization-wide (Public to all members)</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted);margin-top:4px;display:block;">Select an engineering team to categorize this document, or leave organization-wide.</span>
+      </div>
+      <div class="form-group">
         <label>Content</label>
         <textarea id="post-content" style="min-height:200px;" placeholder="Document the decision, context, and reasoning..."></textarea>
       </div>
@@ -112,6 +119,12 @@
         <label>Select File</label>
         <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.pdf">
       </div>
+      <div class="form-group">
+        <label>Target Folder (Optional)</label>
+        <select id="file-folder" style="background:#0a0a0a;border:1px solid #333;color:#eee;padding:8px 12px;border-radius:4px;width:100%;font-size:13px;">
+          <option value="">Root / Unfiled</option>
+        </select>
+      </div>
       <button class="btn btn-primary" onclick="uploadFile()">Upload to Cloudinary</button>
     </div>
 
@@ -126,6 +139,13 @@
       <div class="form-group">
         <label>Folder Name</label>
         <input type="text" id="folder-name" placeholder="Q2 Architecture Diagrams">
+      </div>
+      <div class="form-group">
+        <label>Folder Scope / Team</label>
+        <select id="folder-team" style="background:#0a0a0a;border:1px solid #333;color:#eee;padding:8px 12px;border-radius:4px;width:100%;font-size:13px;">
+          <option value="">Personal Folder (Only Me)</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted);margin-top:4px;display:block;">Assign this folder to an engineering team so teammates have shared access, or keep it personal.</span>
       </div>
       <button class="btn btn-primary" onclick="createFolder()">Create Folder</button>
     </div>
@@ -193,21 +213,23 @@
     document.querySelectorAll('.tabs .tab').forEach((el, i) => {
       el.classList.toggle('active', tabsList[i] === tab);
     });
+    if (tab === 'write') populateTeamDropdowns();
     if (tab === 'drafts') loadDrafts();
     if (tab === 'teams') loadTeams();
-    if (tab === 'files') loadFiles();
-    if (tab === 'folders') loadFolders();
+    if (tab === 'files') { loadFolders(); loadFiles(); }
+    if (tab === 'folders') { populateTeamDropdowns(); loadFolders(); }
   }
 
   // CREATE POST
   async function createPost() {
     const title = document.getElementById('post-title').value.trim();
     const content = document.getElementById('post-content').value.trim();
+    const teamId = document.getElementById('post-team')?.value || null;
     if (!title || !content) return showAlert('alert', 'Title and content required.');
     try {
       const post = await apiFetch('/api/posts', {
         method: 'POST',
-        body: JSON.stringify({ title, content })
+        body: JSON.stringify({ title, content, teamId })
       });
       showAlert('alert', `Post saved as draft (id: ${post.id})! You can review or publish it in the Drafts tab.`, 'success');
       document.getElementById('post-title').value = '';
@@ -236,7 +258,10 @@
         <div class="card" style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
             <div style="font-size:15px;font-weight:700;color:var(--white);">${p.title}</div>
-            <span class="badge badge-draft">draft</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              ${p.team ? `<span class="badge" style="background:#131c2e;color:#60a5fa;border:1px solid #1e3a8a;font-size:10px;">${p.team.name}</span>` : '<span class="badge" style="background:#1c1917;color:#a8a29e;border:1px solid #292524;font-size:10px;">General</span>'}
+              <span class="badge badge-draft">draft</span>
+            </div>
           </div>
           <div class="post-meta" style="margin-bottom:12px;">
             ${p.author ? `<span>by <strong>${p.author.username}</strong></span>` : ''}
@@ -294,8 +319,10 @@
   async function uploadFile() {
     const file = document.getElementById('file-input').files[0];
     if (!file) return showAlert('alert', 'Select a file first.');
+    const folderId = document.getElementById('file-folder')?.value;
     const fd = new FormData();
     fd.append('file', file);
+    if (folderId) fd.append('folderId', folderId);
     try {
       const result = await apiUpload('/api/files/upload', fd);
       showAlert('alert', `Uploaded: ${result.file.name}`, 'success');
@@ -344,9 +371,10 @@
   // FOLDERS
   async function createFolder() {
     const name = document.getElementById('folder-name').value.trim();
+    const teamId = document.getElementById('folder-team')?.value || null;
     if (!name) return showAlert('alert', 'Folder name required.');
     try {
-      await apiFetch('/api/folders', { method: 'POST', body: JSON.stringify({ name }) });
+      await apiFetch('/api/folders', { method: 'POST', body: JSON.stringify({ name, teamId }) });
       document.getElementById('folder-name').value = '';
       loadFolders();
     } catch (e) {
@@ -358,6 +386,13 @@
     try {
       const folders = await apiFetch('/api/folders');
       const list = document.getElementById('folders-list');
+      
+      const folderSelect = document.getElementById('file-folder');
+      if (folderSelect) {
+        folderSelect.innerHTML = '<option value="">Root / Unfiled</option>' +
+          folders.map(f => `<option value="${f.id}">${f.name}${f.team ? ' [' + f.team.name + ']' : ''}</option>`).join('');
+      }
+
       if (!folders.length) {
         list.innerHTML = '<div class="empty">No folders yet.</div>';
         return;
@@ -366,8 +401,11 @@
         <div class="card" style="margin-bottom:8px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div style="font-weight:700;color:var(--white);">${f.name}</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:3px;">${formatDate(f.createdAt)}</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-weight:700;color:var(--white);">${f.name}</span>
+                ${f.team ? `<span class="badge" style="background:#131c2e;color:#60a5fa;border:1px solid #1e3a8a;font-size:10px;">${f.team.name}</span>` : '<span class="badge" style="background:#1c1917;color:#a8a29e;border:1px solid #292524;font-size:10px;">Personal</span>'}
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px;">${formatDate(f.createdAt)} · ${f._count?.files || 0} files</div>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-ghost" style="font-size:10px;padding:6px 12px;" onclick="shareFolder(${f.id})">share</button>
@@ -378,6 +416,28 @@
       `).join('');
     } catch (e) {
       showAlert('alert', e.message);
+    }
+  }
+
+  async function populateTeamDropdowns() {
+    try {
+      const teams = await apiFetch('/api/teams');
+      const postSelect = document.getElementById('post-team');
+      const folderSelect = document.getElementById('folder-team');
+      if (postSelect) {
+        const curVal = postSelect.value;
+        postSelect.innerHTML = '<option value="">General / Organization-wide (Public to all members)</option>' +
+          teams.map(t => `<option value="${t.id}">Team: ${t.name}</option>`).join('');
+        if (curVal) postSelect.value = curVal;
+      }
+      if (folderSelect) {
+        const curVal = folderSelect.value;
+        folderSelect.innerHTML = '<option value="">Personal Folder (Only Me)</option>' +
+          teams.map(t => `<option value="${t.id}">Team Folder: ${t.name}</option>`).join('');
+        if (curVal) folderSelect.value = curVal;
+      }
+    } catch (e) {
+      console.warn('Could not populate team dropdowns:', e);
     }
   }
 
@@ -631,6 +691,7 @@ async function becomeAdmin() {
   }
 
   refreshUserProfile();
+  populateTeamDropdowns();
   loadDrafts();
 </script>
 </body>

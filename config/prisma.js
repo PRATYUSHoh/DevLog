@@ -61,6 +61,7 @@ function createMockPrisma() {
             content: 'At Razorpay we use exponential backoff with jitter for transient gateway errors. This ensures downstream acquirers are not overwhelmed during micro-outages while keeping checkout latency minimal for successful retries. We also monitor p99 response times and dynamically throttle retries if error thresholds exceed 5%.',
             isPublished: true,
             authorId: 1,
+            teamId: 1,
             createdAt: new Date('2026-09-15T14:30:00Z')
         },
         {
@@ -69,6 +70,7 @@ function createMockPrisma() {
             content: 'Evaluating latency improvements of in-memory caching vs relational session stores for high-throughput microservices. Target p95 retrieval is <2ms under peak load.',
             isPublished: false,
             authorId: 2,
+            teamId: 1,
             createdAt: new Date('2026-09-18T11:00:00Z')
         }
     ];
@@ -88,6 +90,7 @@ function createMockPrisma() {
             id: 1,
             name: 'Architecture Diagrams',
             userId: 1,
+            teamId: 1,
             createdAt: new Date('2026-09-10T09:00:00Z')
         }
     ];
@@ -154,17 +157,25 @@ function createMockPrisma() {
                 if (args.where?.authorId !== undefined) {
                     result = result.filter(p => p.authorId === args.where.authorId);
                 }
+                if (args.where?.teamId !== undefined) {
+                    result = result.filter(p => p.teamId === args.where.teamId);
+                }
                 const skip = args.skip || 0;
                 const limit = args.take || result.length;
                 result = result.slice(skip, skip + limit);
 
                 return result.map(p => {
                     const author = users.find(u => u.id === p.authorId);
-                    const item = { id: p.id, title: p.title, content: p.content };
+                    const team = p.teamId ? teams.find(t => t.id === p.teamId) : null;
+                    const item = { id: p.id, title: p.title, content: p.content, teamId: p.teamId || null };
                     if (args.select) {
                         if (args.select.createdAt) item.createdAt = p.createdAt;
                         if (args.select.isPublished !== undefined) item.isPublished = p.isPublished;
                         if (args.select.authorId !== undefined) item.authorId = p.authorId;
+                        if (args.select.teamId !== undefined) item.teamId = p.teamId || null;
+                        if (args.select.team) {
+                            item.team = team ? { id: team.id, name: team.name } : null;
+                        }
                         if (args.select.author) {
                             item.author = author ? { username: author.username } : null;
                         }
@@ -173,6 +184,7 @@ function createMockPrisma() {
                         item.isPublished = p.isPublished;
                         item.authorId = p.authorId;
                         item.author = author ? { username: author.username } : null;
+                        item.team = team ? { id: team.id, name: team.name } : null;
                     }
                     return item;
                 });
@@ -181,7 +193,8 @@ function createMockPrisma() {
                 const p = posts.find(item => item.id === parseInt(where.id));
                 if (!p) return null;
                 const author = users.find(u => u.id === p.authorId);
-                const item = { id: p.id, title: p.title, content: p.content };
+                const team = p.teamId ? teams.find(t => t.id === p.teamId) : null;
+                const item = { id: p.id, title: p.title, content: p.content, teamId: p.teamId || null };
                 if (select) {
                     if (select.createdAt) item.createdAt = p.createdAt;
                     if (select.isPublished) item.isPublished = p.isPublished;
@@ -189,11 +202,16 @@ function createMockPrisma() {
                         item.author = author ? { username: author.username } : null;
                     }
                     if (select.authorId) item.authorId = p.authorId;
+                    if (select.teamId !== undefined) item.teamId = p.teamId || null;
+                    if (select.team) {
+                        item.team = team ? { id: team.id, name: team.name } : null;
+                    }
                 } else {
                     item.createdAt = p.createdAt;
                     item.isPublished = p.isPublished;
                     item.authorId = p.authorId;
                     item.author = author ? { username: author.username } : null;
+                    item.team = team ? { id: team.id, name: team.name } : null;
                 }
                 return item;
             },
@@ -203,6 +221,7 @@ function createMockPrisma() {
                     title: data.title,
                     content: data.content,
                     authorId: parseInt(data.authorId),
+                    teamId: data.teamId ? parseInt(data.teamId) : null,
                     isPublished: data.isPublished ?? false,
                     createdAt: new Date()
                 };
@@ -257,10 +276,19 @@ function createMockPrisma() {
         },
         folder: {
             findMany: async ({ where, include }) => {
-                const userId = parseInt(where.userId);
-                const list = folders.filter(f => f.userId === userId);
+                const userId = where?.userId ? parseInt(where.userId) : null;
+                const teamId = where?.teamId ? parseInt(where.teamId) : null;
+                let list = folders.slice();
+                if (userId && teamId) {
+                    list = list.filter(f => f.userId === userId || f.teamId === teamId);
+                } else if (userId) {
+                    list = list.filter(f => f.userId === userId);
+                } else if (teamId) {
+                    list = list.filter(f => f.teamId === teamId);
+                }
                 return list.map(f => {
-                    const item = { ...f };
+                    const team = f.teamId ? teams.find(t => t.id === f.teamId) : null;
+                    const item = { ...f, team: team ? { id: team.id, name: team.name } : null };
                     if (include?._count?.select?.files) {
                         const count = files.filter(file => file.folderId === f.id).length;
                         item._count = { files: count };
@@ -271,7 +299,8 @@ function createMockPrisma() {
             findUnique: async ({ where, include }) => {
                 const f = folders.find(folder => folder.id === parseInt(where.id));
                 if (!f) return null;
-                const item = { ...f };
+                const team = f.teamId ? teams.find(t => t.id === f.teamId) : null;
+                const item = { ...f, team: team ? { id: team.id, name: team.name } : null };
                 if (include?.files) {
                     item.files = files.filter(file => file.folderId === f.id);
                 }
@@ -282,6 +311,7 @@ function createMockPrisma() {
                     id: nextFolderId++,
                     name: data.name,
                     userId: parseInt(data.userId),
+                    teamId: data.teamId ? parseInt(data.teamId) : null,
                     createdAt: new Date()
                 };
                 folders.push(folder);

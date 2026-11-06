@@ -32,10 +32,14 @@ const cloudinary = require('../config/cloudinary');
  */
 router.post('/', requireJWT, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, teamId } = req.body;
         if (!name) return res.status(400).json({ error: 'Folder name is required' });
         const folder = await prisma.folder.create({
-            data: { name, userId: req.user.id }
+            data: {
+                name,
+                userId: req.user.id,
+                teamId: teamId ? parseInt(teamId) : null
+            }
         });
         res.status(201).json(folder);
     } catch (error) {
@@ -48,7 +52,7 @@ router.post('/', requireJWT, async (req, res) => {
  * @swagger
  * /api/folders:
  *   get:
- *     summary: List all folders owned by current user
+ *     summary: List all folders owned by current user or current user's team
  *     tags: [Folders]
  *     security:
  *       - bearerAuth: []
@@ -58,8 +62,12 @@ router.post('/', requireJWT, async (req, res) => {
  */
 router.get('/', requireJWT, async (req, res) => {
     try {
+        const where = { userId: req.user.id };
+        if (req.user.teamId) {
+            where.teamId = req.user.teamId;
+        }
         const folders = await prisma.folder.findMany({
-            where: { userId: req.user.id },
+            where,
             include: { _count: { select: { files: true } } }
         });
         res.json(folders);

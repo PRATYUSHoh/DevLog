@@ -154,7 +154,10 @@
         <a href="post.html?id=${p.id}" class="post-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
             <div class="post-title">${p.title}</div>
-            <span class="badge ${p.isPublished ? 'badge-published' : 'badge-draft'}">${p.isPublished ? 'published' : 'draft'}</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              ${p.team ? `<span class="badge" style="background:#131c2e;color:#60a5fa;border:1px solid #1e3a8a;font-size:10px;">${p.team.name}</span>` : '<span class="badge" style="background:#1c1917;color:#a8a29e;border:1px solid #292524;font-size:10px;">General</span>'}
+              <span class="badge ${p.isPublished ? 'badge-published' : 'badge-draft'}">${p.isPublished ? 'published' : 'draft'}</span>
+            </div>
           </div>
           <div class="post-meta">
             ${p.author ? `<span>by ${p.author.username}</span>` : '<span style="color:#737373;">author hidden (not in team)</span>'}
