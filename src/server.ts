@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import app from './app';
 
 const DEFAULT_PORT = 3000;
