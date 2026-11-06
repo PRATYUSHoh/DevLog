@@ -17,8 +17,8 @@
 
 | Resource | URL | Description |
 |---|---|---|
-| **Live Web Application** | [ais-pre-kycexr64cdajdhou6la6im-724630893839.asia-east1.run.app](https://ais-pre-kycexr64cdajdhou6la6im-724630893839.asia-east1.run.app) | Full responsive dashboard, teams explorer, and knowledge base |
-| **Interactive Swagger API** | [ais-pre-kycexr64cdajdhou6la6im-724630893839.asia-east1.run.app/api-docs](https://ais-pre-kycexr64cdajdhou6la6im-724630893839.asia-east1.run.app/api-docs) | OpenAPI 3.0 test suite with live token authorization |
+| **Interactive Swagger API** | [ais-pre-kycexr64cdajdhou6la6im-724630893839.asia-east1.run.app/api-docs](https://ais-pre-kycexr64cdajdhou6la6im-724630893839.asia-east1.run.app/api-docs) | OpenAPI 3.0 test suite with live token authorization |<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/055453ea-bd6d-411d-b054-d26a62e59bee" />
+
 
 ### Pre-Seeded Test Credentials
 
