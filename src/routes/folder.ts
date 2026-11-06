@@ -32,13 +32,16 @@ router.post('/', requireJWT, validate(createFolderSchema), async (req: Request, 
 
 router.get('/', requireJWT, async (req: Request, res: Response) => {
   try {
-    const where: any = { userId: req.user!.id };
-    if (req.user!.teamId) {
-      where.teamId = req.user!.teamId;
-    }
+    const where: any = req.user!.teamId
+      ? { OR: [{ userId: req.user!.id }, { teamId: req.user!.teamId }] }
+      : { userId: req.user!.id };
+
     const folders = await prisma.folder.findMany({
       where,
-      include: { _count: { select: { files: true } } }
+      include: {
+        _count: { select: { files: true } },
+        team: { select: { id: true, name: true } }
+      }
     });
     res.json(folders);
   } catch (error) {
@@ -83,7 +86,7 @@ router.delete('/:id', requireJWT, async (req: Request, res: Response) => {
         try {
           await cloudinary.uploader.destroy(file.publicId);
         } catch (err: any) {
-          console.warn('[AI Studio] Cloudinary destroy error:', err.message);
+          console.warn('[DevLog] Cloudinary destroy error:', err.message);
         }
       }
     }

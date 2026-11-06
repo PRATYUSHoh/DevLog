@@ -33,14 +33,18 @@ router.get('/', optionalJWT, async (req: Request, res: Response) => {
   const isAdmin = Boolean(req.user?.isAdmin);
   const canSeeAttribution = isMember || isAdmin;
 
+  const select: any = {
+    id: true,
+    text: true,
+    createdAt: true,
+  };
+  if (canSeeAttribution) {
+    select.author = { select: { username: true } };
+  }
+
   const comments = await prisma.comment.findMany({
     where: { postId },
-    select: {
-      id: true,
-      text: true,
-      createdAt: true,
-      author: canSeeAttribution ? { select: { username: true } } : false,
-    },
+    select,
   });
   res.json(comments);
 });

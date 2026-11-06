@@ -49,6 +49,12 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "test": "jest --runInBand --detectOpenHandles --forceExit"
+    "lint": "tsc --noEmit",
+    "test": "jest --runInBand --detectOpenHandles --forceExit",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

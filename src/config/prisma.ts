@@ -508,17 +508,16 @@ function createMockPrisma(): PrismaMock {
 }
 
 const dbUrl = process.env.DATABASE_URL;
-const isDummyLocalhost = !dbUrl || dbUrl.includes('localhost:5432') || dbUrl.includes('127.0.0.1:5432');
 
 let prisma: any;
-if (!isDummyLocalhost) {
+if (dbUrl && process.env.USE_MOCK_DB !== 'true') {
   try {
     const { PrismaClient } = require('@prisma/client');
     const { PrismaPg } = require('@prisma/adapter-pg');
     const adapter = new PrismaPg({ connectionString: dbUrl });
     prisma = new PrismaClient({ adapter });
   } catch (err: any) {
-    console.warn('[AI Studio] Database connection error — falling back to mock:', err.message);
+    console.warn('[DevLog] Database connection error — falling back to mock:', err.message);
     prisma = createMockPrisma();
   }
 } else {

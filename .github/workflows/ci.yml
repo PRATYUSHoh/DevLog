@@ -10,28 +10,57 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: devlog_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Bun (matching bun.lock)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js 22 (LTS for Prisma 7)
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: 22
 
       - name: Install Dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Generate Prisma Client
-        run: npm run build
+        run: bunx prisma generate
 
-      - name: Run Test Suite
+      - name: Sync Database Schema
+        # Using prisma db push to ensure all models (including Team) are fully synchronized
+        run: bunx prisma db push --skip-generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/devlog_test
+
+      - name: Seed Test Database
+        run: bunx prisma db seed
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/devlog_test
+
+      - name: Run Integration Tests
         run: npm test
         env:
           NODE_ENV: test
           SECRET: test-secret-ci-key
+          JWT_SECRET: devlog-jwt-secret-key-12345
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/devlog_test
+          PORT: 3000

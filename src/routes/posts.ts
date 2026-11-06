@@ -38,20 +38,24 @@ router.get('/', optionalJWT, async (req: Request, res: Response) => {
     where.teamId = parseInt(req.query.teamId as string);
   }
 
+  const select: any = {
+    id: true,
+    title: true,
+    content: true,
+    isPublished: true,
+    teamId: true,
+    team: { select: { id: true, name: true } },
+  };
+  if (isMember || isAdmin) {
+    select.createdAt = true;
+    select.author = { select: { username: true } };
+  }
+
   const posts = await prisma.post.findMany({
     where,
     skip: (page - 1) * limit,
     take: limit,
-    select: {
-      id: true,
-      title: true,
-      content: true,
-      isPublished: true,
-      teamId: true,
-      team: { select: { id: true, name: true } },
-      createdAt: isMember || isAdmin,
-      author: (isMember || isAdmin) ? { select: { username: true } } : false,
-    },
+    select,
   });
   res.json(posts);
 });
@@ -66,19 +70,23 @@ router.get('/:id', optionalJWT, async (req: Request, res: Response) => {
   const isAdmin = Boolean(req.user?.isAdmin);
   const canSeeAttribution = isMember || isAdmin;
 
+  const select: any = {
+    id: true,
+    title: true,
+    content: true,
+    isPublished: true,
+    authorId: true,
+    teamId: true,
+    team: { select: { id: true, name: true } },
+  };
+  if (canSeeAttribution) {
+    select.createdAt = true;
+    select.author = { select: { username: true } };
+  }
+
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: {
-      id: true,
-      title: true,
-      content: true,
-      isPublished: true,
-      authorId: true,
-      teamId: true,
-      team: { select: { id: true, name: true } },
-      createdAt: canSeeAttribution,
-      author: canSeeAttribution ? { select: { username: true } } : false,
-    },
+    select,
   });
   if (!post) return res.status(404).json({ error: 'Post not found' });
 

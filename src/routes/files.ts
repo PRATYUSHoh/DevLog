@@ -96,7 +96,7 @@ router.delete('/:id', requireJWT, async (req: Request, res: Response) => {
       try {
         await cloudinary.uploader.destroy(file.publicId);
       } catch (err: any) {
-        console.warn('[AI Studio] Cloudinary destroy error:', err.message);
+        console.warn('[DevLog] Cloudinary destroy error:', err.message);
       }
     }
     await prisma.file.delete({

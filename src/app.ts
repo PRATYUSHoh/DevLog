@@ -68,7 +68,7 @@ if (!isDummyLocalhost) {
       createTableIfMissing: true
     });
   } catch (e: any) {
-    console.warn('[AI Studio] Could not initialize pgSession, falling back to MemoryStore:', e.message);
+    console.warn('[DevLog] Could not initialize pgSession, falling back to MemoryStore:', e.message);
   }
 }
 

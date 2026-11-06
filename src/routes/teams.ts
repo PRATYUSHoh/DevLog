@@ -13,11 +13,16 @@ function parseParamId(param: string | string[] | undefined): number {
 
 router.get('/', optionalJWT, async (req: Request, res: Response) => {
   try {
-    const teams = await prisma.team.findMany();
+    const teams = await prisma.team.findMany({
+      include: { members: { select: { id: true, username: true } } }
+    });
     const currentUserId = req.user?.id;
 
     const sanitized = teams.map((t: any) => {
-      const isUserMember = currentUserId && t.members ? t.members.includes(currentUserId) : false;
+      const memberIds: number[] = Array.isArray(t.members)
+        ? t.members.map((m: any) => (typeof m === 'object' && m !== null ? m.id : m))
+        : [];
+      const isUserMember = currentUserId ? memberIds.includes(currentUserId) : false;
       const isUserOwner = currentUserId && t.ownerId === currentUserId;
       return {
         id: t.id,
@@ -25,7 +30,7 @@ router.get('/', optionalJWT, async (req: Request, res: Response) => {
         description: t.description || '',
         ownerId: t.ownerId,
         ownerUsername: t.ownerUsername || 'admin',
-        memberCount: t.memberCount || (t.members ? t.members.length : 1),
+        memberCount: memberIds.length || (t.memberCount || 1),
         isUserMember,
         isUserOwner,
         createdAt: t.createdAt
@@ -43,18 +48,24 @@ router.get('/:id', optionalJWT, async (req: Request, res: Response) => {
     const teamId = parseParamId(req.params.id);
     if (isNaN(teamId)) return res.status(400).json({ error: 'Invalid team ID' });
 
-    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      include: { members: { select: { id: true, username: true } } }
+    });
     if (!team) return res.status(404).json({ error: 'Team not found' });
 
+    const memberIds: number[] = Array.isArray(team.members)
+      ? team.members.map((m: any) => (typeof m === 'object' && m !== null ? m.id : m))
+      : [];
     const isOwnerOrAdmin = Boolean(req.user && (req.user.id === team.ownerId || req.user.isAdmin));
-    const isMember = Boolean(req.user && team.members ? team.members.includes(req.user.id) : false);
+    const isMember = Boolean(req.user && memberIds.includes(req.user.id));
 
     const payload: any = {
       id: team.id,
       name: team.name,
       description: team.description || '',
       ownerId: team.ownerId,
-      memberCount: team.members ? team.members.length : 1,
+      memberCount: memberIds.length || 1,
       isUserMember: isMember,
       isUserOwner: Boolean(req.user ? req.user.id === team.ownerId : false),
       createdAt: team.createdAt
@@ -123,15 +134,6 @@ router.post('/:id/join', requireJWT, validate(joinTeamSchema), async (req: Reque
       return res.status(403).json({ error: 'Incorrect team password.' });
     }
 
-    const currentMembers: number[] = team.members || [];
-    if (!currentMembers.includes(req.user!.id)) {
-      currentMembers.push(req.user!.id);
-      await prisma.team.update({
-        where: { id: teamId },
-        data: { members: currentMembers }
-      });
-    }
-
     await prisma.user.update({
       where: { id: req.user!.id },
       data: {
@@ -139,6 +141,21 @@ router.post('/:id/join', requireJWT, validate(joinTeamSchema), async (req: Reque
         teamId: team.id
       }
     });
+
+    if (team.members && Array.isArray(team.members)) {
+      try {
+        const currentMembers = team.members.map((m: any) => (typeof m === 'object' && m !== null ? m.id : m));
+        if (!currentMembers.includes(req.user!.id)) {
+          currentMembers.push(req.user!.id);
+          await prisma.team.update({
+            where: { id: teamId },
+            data: { members: currentMembers }
+          });
+        }
+      } catch {
+        // No-op for real Prisma where members is a relational User[] model
+      }
+    }
 
     res.json({
       message: `You have joined "${team.name}"! You now have full internal attribution privileges.`,
@@ -155,13 +172,6 @@ router.post('/:id/leave', requireJWT, async (req: Request, res: Response) => {
 
   try {
     const team = await prisma.team.findUnique({ where: { id: teamId } });
-    if (team && team.members) {
-      const updatedMembers = team.members.filter((uid: number) => uid !== req.user!.id);
-      await prisma.team.update({
-        where: { id: teamId },
-        data: { members: updatedMembers }
-      });
-    }
 
     const updateData: any = { teamId: null };
     if (!req.user!.isAdmin) {
@@ -172,6 +182,20 @@ router.post('/:id/leave', requireJWT, async (req: Request, res: Response) => {
       where: { id: req.user!.id },
       data: updateData
     });
+
+    if (team && team.members && Array.isArray(team.members)) {
+      try {
+        const updatedMembers = team.members
+          .map((m: any) => (typeof m === 'object' && m !== null ? m.id : m))
+          .filter((uid: number) => uid !== req.user!.id);
+        await prisma.team.update({
+          where: { id: teamId },
+          data: { members: updatedMembers }
+        });
+      } catch {
+        // No-op for real Prisma
+      }
+    }
 
     res.json({ message: 'You have left the team. You are now in Guest mode.' });
   } catch (e: any) {
